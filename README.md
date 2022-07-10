@@ -9,5 +9,5 @@ How to use
 ==========
 
 ```
-blender -b -p main.py
+blender -b --python main.py
 ```

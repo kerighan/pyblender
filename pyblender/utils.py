@@ -1,5 +1,5 @@
-import mathutils
 import numpy as np
+from mathutils import Vector
 
 
 def hex_to_rgb(value):
@@ -21,7 +21,40 @@ def hex_to_rgba(value, alpha=1):
 def look_at(obj, point):
     loc = obj.location
     direction = np.array(point) - loc
-    rot_quat = mathutils.Vector(direction).to_track_quat('-Z', 'Y')
-    print(direction)
-    print(rot_quat.to_euler())
+    rot_quat = Vector(direction).to_track_quat('-Z', 'Y')
     obj.rotation_euler = rot_quat.to_euler()
+
+
+def random_string(length):
+    import string
+    import random
+    return ''.join(
+        random.choice(string.ascii_lowercase) for i in range(length))
+
+
+def normal_in_dir(normal, direction, limit=0.5):
+    return direction.dot(normal) > limit
+
+
+def face_up(normal, limit=0.5):
+    return normal_in_dir(normal, Vector((0, 0, 1)), limit)
+
+
+def face_down(normal, limit=0.5):
+    return normal_in_dir(normal, Vector((0, 0, -1)), limit)
+
+
+def face_front(normal, limit=0.5):
+    return normal_in_dir(normal, Vector((1, 0, 0)), limit)
+
+
+def face_back(normal, limit=0.5):
+    return normal_in_dir(normal, Vector((-1, 0, 0)), limit)
+
+
+def face_right(normal, limit=0.5):
+    return normal_in_dir(normal, Vector((0, 1, 0)), limit)
+
+
+def face_left(normal, limit=0.5):
+    return normal_in_dir(normal, Vector((0, -1, 0)), limit)

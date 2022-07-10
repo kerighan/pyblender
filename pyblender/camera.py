@@ -4,9 +4,14 @@ from .utils import look_at
 
 
 class Camera:
-    def __init__(self, location,
-                 focus_point=None, use_dof=False, aperture_ratio=1,
-                 aperture_fstop=2.8):
+    def __init__(self,
+                 location=(0, 0, 0),
+                 rotation=(0, 0, 0),
+                 focus_point=None,
+                 use_dof=False,
+                 aperture_ratio=1,
+                 aperture_fstop=2.8,
+                 lens=50):
         cam_data = bpy.data.cameras.new('camera')
         # cam_data.dof.focus_distance = focus_distance
         if focus_point is not None:
@@ -16,12 +21,14 @@ class Camera:
 
         cam_data.dof.aperture_ratio = aperture_ratio
         cam_data.dof.aperture_fstop = aperture_fstop
-        cam_data.dof.aperture_blades = 8
+        # cam_data.dof.aperture_blades = 8
         if use_dof:
             cam_data.dof.use_dof = True
+        cam_data.lens = lens
 
         cam = bpy.data.objects.new('camera', cam_data)
         cam.location = location
+        cam.rotation_euler = rotation
         self.obj = cam
 
     def look_at(self, item):

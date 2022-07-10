@@ -5,7 +5,7 @@ from .utils import hex_to_rgb, look_at
 
 
 class Sun:
-    def __init__(self, energy=50, location=(30, -4, 5)):
+    def __init__(self, energy=1, location=(30, -4, 5)):
         light_data = bpy.data.lights.new('light', type='SUN')
         light = bpy.data.objects.new('light', light_data)
         light.location = location

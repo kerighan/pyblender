@@ -1,5 +1,5 @@
 import pyblender as pb
-from pyblender.image import Image
+from pyblender.texture import Image
 from pyblender.modifier import Displacement
 
 pb.SpotLight((-.5, -.5, 1), energy=60)

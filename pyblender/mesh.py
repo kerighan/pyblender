@@ -1,10 +1,12 @@
 import bpy
+import bmesh
 
-from .utils import look_at
+from .utils import look_at, random_string
+from .geometry import GeoNodes
 
 
 class Mesh:
-    def set_material(self, material):
+    def add_material(self, material):
         if material is not None:
             self.obj.data.materials.append(material.mat)
 
@@ -12,10 +14,38 @@ class Mesh:
         if not visible:
             self.obj.hide_viewport = True
             self.obj.hide_render = True
+    
+    def shade_smooth(self):
+        for f in self.obj.data.polygons:
+            f.use_smooth = True
 
     def init(self, material, visible):
-        self.set_material(material)
+        self.add_material(material)
         self.set_visible(visible)
+        
+    def modify_wireframe(self, thickness=.02):
+        m = self.obj.modifiers.new('wireframe', 'WIREFRAME')
+        m.thickness = thickness
+        return m
+    
+    def modify_subdivide(self, levels=1, render_levels=2, quality=3):
+        m = self.obj.modifiers.new('subdivide', 'SUBSURF')
+        m.levels = levels
+        m.render_levels = render_levels
+        m.quality = quality
+        return m
+    
+    def modify_displace(self, tex, strength=1):
+        m = self.obj.modifiers.new('displace', 'DISPLACE')
+        m.strength = strength
+        m.texture = tex.texture
+        return m
+    
+    def modify_mirror(self, object=None, axis=(True, True, True)):
+        m = self.obj.modifiers.new('mirror', 'MIRROR')
+        m.use_axis = axis
+        if object is not None:
+            m.mirror_object = object.obj
 
     def animate_rotation(self, values, frames=None):
         if frames is None:
@@ -52,18 +82,58 @@ class Mesh:
             self.obj.scale = (1, 1, scale)
             self.obj.keyframe_insert("scale", frame=frame)
 
-    def animate_color(self, values, frames=None):
-        if frames is None:
-            frames = range(len(values))
-        mat = self.obj.data.materials[0]
-        bsdf = mat.node_tree.nodes['Principled BSDF']
-
     def look_at(self, item):
         if isinstance(item, tuple):
             look_at(self.obj, item)
         else:
             constraint = self.obj.constraints.new(type='TRACK_TO')
             constraint.target = item.obj
+
+    def remove_face(self, direction="up", limit=.5):
+        from .utils import (
+            face_left, face_right, face_back, face_front, face_down, face_up)
+        if direction == "up":
+            func = face_up
+        elif direction == "down":
+            func = face_down
+        elif direction == "left":
+            func = face_left
+        elif direction == "right":
+            func = face_right
+        elif direction == "front":
+            func = face_front
+        elif direction == "back":
+            func = face_back
+        
+        bpy.context.view_layer.objects.active = self.obj
+
+        previous_mode = self.obj.mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        bm = bmesh.new()
+        bm.from_mesh(self.obj.data)
+        bm.faces.ensure_lookup_table()
+        faces = [f for f in bm.faces if func(f.normal, limit=limit)]
+        bmesh.ops.delete(bm, geom=faces, context='FACES_ONLY')
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bmesh.update_edit_mesh(self.obj.data)
+        bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
+
+    def subdivide(self, cuts=1):
+        previous_mode = self.obj.mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        bm = bmesh.new()
+        bm.from_mesh(self.obj.data)
+        bmesh.ops.subdivide_edges(bm, edges=bm.edges, cuts=cuts,
+                                  use_grid_fill=True)
+        bm.to_mesh(self.obj.data)
+        self.obj.data.update()
+        bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
+    
+    def create_geomtry_nodes(self):
+        nodes = self.obj.modifiers.new(name="GeometryNodes", type='NODES')
+        return GeoNodes(nodes)
 
 
 class Empty(Mesh):
@@ -92,13 +162,15 @@ class Sphere(Mesh):
     def __init__(
         self,
         location=(0, 0, 0),
+        rotation=(0, 0, 0),
         radius=1,
         div=8,
         material=None,
         visible=True
     ):
         bpy.ops.mesh.primitive_uv_sphere_add(
-            radius=radius, location=location, segments=div, ring_count=div)
+            radius=radius, location=location, rotation=rotation,
+            segments=div, ring_count=div)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 
@@ -107,13 +179,32 @@ class IcoSphere(Mesh):
     def __init__(
         self,
         location=(0, 0, 0),
+        rotation=(0, 0, 0),
         radius=1,
         div=8,
         material=None,
         visible=True
     ):
         bpy.ops.mesh.primitive_ico_sphere_add(
-            radius=radius, location=location, subdivisions=div)
+            radius=radius, location=location, rotation=rotation,
+            subdivisions=div)
+        self.obj = bpy.context.scene.objects[-1]
+        self.init(material, visible)
+
+
+class UVSphere(Mesh):
+    def __init__(
+        self,
+        location=(0, 0, 0),
+        rotation=(0, 0, 0),
+        radius=1,
+        div=32,
+        material=None,
+        visible=True
+    ):
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=radius, location=location, rotation=rotation,
+            segments=div, ring_count=div//2)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 
@@ -147,7 +238,8 @@ class Plane(Mesh):
     ):
 
         bpy.ops.mesh.primitive_plane_add(
-            location=location, rotation=rotation, size=size, scale=scale, enter_editmode=True)
+            location=location, rotation=rotation,
+            size=size, scale=scale)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 
@@ -207,13 +299,20 @@ class Cylinder(Mesh):
         depth=1,
         div=32,
         material=None,
+        end_fill_type=None,
         visible=True
     ):
 
-        bpy.ops.mesh.primitive_cylinder_add(
-            depth=depth, radius=radius,
-            location=location, scale=scale,
-            rotation=rotation, vertices=div)
+        if end_fill_type is not None:
+            bpy.ops.mesh.primitive_cylinder_add(
+                depth=depth, radius=radius, end_fill_type=end_fill_type,
+                location=location, scale=scale,
+                rotation=rotation, vertices=div)
+        else:
+            bpy.ops.mesh.primitive_cylinder_add(
+                depth=depth, radius=radius,
+                location=location, scale=scale,
+                rotation=rotation, vertices=div)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 

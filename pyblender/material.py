@@ -1,6 +1,6 @@
 import bpy
 
-from .utils import hex_to_rgb, hex_to_rgba
+from .utils import hex_to_rgb, hex_to_rgba, random_string
 
 
 def create_glow_material(color, emission_strength=1):
@@ -27,26 +27,82 @@ def create_glow_material(color, emission_strength=1):
 
 class NodeMaterial:
     def __init__(self, name="NodeMaterial"):
-        self.mat = bpy.data.materials.new(name=name)
+        self.mat = bpy.data.materials.new(name=random_string(10))
         self.mat.use_nodes = True
         self.nodes = self.mat.node_tree.nodes
         self.links = self.mat.node_tree.links
-        self.bsdf = self.nodes.get("Principled BSDF")
-        self.material_output = self.nodes.get("Material Output")
+        self.material_output = Node(self.nodes.get("Material Output"), self)
+        self.bsdf = Node(self.nodes.get("Principled BSDF"), self)
+    
+    def reset(self):        
+        for node in self.nodes:
+            self.nodes.remove(node)
 
     # def create_bevel(self):
     #     node = self.mat.node_tree.nodes.new("ShaderNodeBevel")
     #     node.operation = "MULTIPLY"
     #     node.inputs[1].default_value = value
     #     return Node(node, self)
+    
+    def create_texture_coordinate(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexCoord")
+        return Node(node, self)
 
-    def create_math_node(self, operation="MULTIPLY", value=5):
+    def create_mix_shader(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeMixShader")
+        return Node(node, self)
+    
+    def create_mix_rgb(self, fac=.5):
+        node = self.mat.node_tree.nodes.new("ShaderNodeMixRGB")
+        node.inputs["Fac"].default_value = fac
+        return Node(node, self)
+
+    def create_layer_weight(self, blend=.5):
+        node = self.mat.node_tree.nodes.new("ShaderNodeLayerWeight")
+        node.inputs["Blend"].default_value = blend
+        return Node(node, self)
+
+    def create_emission(self, strength=50, color="#FF0000"):
+        node = self.mat.node_tree.nodes.new("ShaderNodeEmission")
+        node.inputs["Strength"].default_value = strength
+        node.inputs["Color"].default_value = hex_to_rgba(color)
+        return Node(node, self)
+    
+    def create_mapping(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeMapping")
+        return Node(node, self)
+
+    def create_geometry(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeNewGeometry")
+        return Node(node, self)
+
+    def create_bump(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeBump")
+        return Node(node, self)
+    
+    def create_checker_texture(self, scale=5):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexChecker")
+        node.inputs["Scale"].default_value = scale
+        return Node(node, self)
+
+    def create_brick_texture(self, scale=5):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexBrick")
+        node.inputs["Scale"].default_value = scale
+        return Node(node, self)
+
+    def create_voronoi_texture(self, distance="EUCLIDEAN", scale=5):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexVoronoi")
+        node.inputs["Scale"].default_value = scale
+        node.distance = distance
+        return Node(node, self)
+
+    def create_operation(self, operation="MULTIPLY", value=5):
         node = self.mat.node_tree.nodes.new("ShaderNodeMath")
         node.operation = operation
         node.inputs[1].default_value = value
         return Node(node, self)
 
-    def create_color_ramp(self, color_mode="RGB", colors=None):
+    def create_color_ramp(self, color_mode="RGB", colors=None, positions=None):
         node = self.mat.node_tree.nodes.new("ShaderNodeValToRGB")
         node.color_ramp.color_mode = color_mode
 
@@ -54,14 +110,23 @@ class NodeMaterial:
             colors = [hex_to_rgba(c) for c in colors]
             for i in range(len(colors)):
                 node.color_ramp.elements[i].color = colors[i]
+        if positions is not None:
+            for i in range(len(positions)):
+                node.color_ramp.elements[i].position = positions[i]
         return Node(node, self)
 
-    def create_noise_texture(self, color=None):
+    def create_noise_texture(
+        self, color=None, scale=5, detail=2, distortion=0, noise_dimensions="3D"
+    ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexNoise")
         if color is not None:
             color = hex_to_rgb(color)
             node.use_custom_color = True
             node.color = color
+        node.inputs["Scale"].default_value = scale
+        node.inputs["Detail"].default_value = detail
+        node.inputs["Distortion"].default_value = distortion
+        node.noise_dimensions = noise_dimensions
         return Node(node, self)
 
     def get_node(self, name):
@@ -84,6 +149,29 @@ class Node:
     def __init__(self, node, mat):
         self._node = node
         self._mat = mat
+        self._current = None
+    
+    def link_to(self, target, output="Color", input="Base Color"):
+        self._mat.link(self, target, output, input)
+
+    def animate(self, key, values, frames=None):
+        path = self._node.inputs[key]
+        frames = range(len(values)) if frames is None else frames
+        for frame, value in zip(frames, values):
+            path.default_value = value
+            path.keyframe_insert(data_path="default_value", frame=frame)
+    
+    def __setitem__(self, key, value):
+        self._node.inputs[key].default_value = value
+    
+    def __getitem__(self, key):
+        self._current = key
+        return self
+    
+    def to(self, target):
+        self._mat.link(self, target, self._current, target._current)
+        target._current = None
+        self._current = None
 
 
 class Material(NodeMaterial):
@@ -93,31 +181,32 @@ class Material(NodeMaterial):
         roughness=.5,
         metallic=.5,
         specular=0,
-        opacity=1,
+        # opacity=1,
         emission_strength=0,
         emission_color=None,
+        transmission=0,
         texture=None,
-        cast_shadows=True
+        cast_shadows=True,
+        blend_mode="OPAQUE"
     ):
-        color = hex_to_rgb(color)
-
-        # mat = bpy.data.materials.new(name='Material')
-        # mat.use_nodes = True
         super().__init__()
 
         inputs = self.nodes["Principled BSDF"].inputs
 
         # PBR
+        color = hex_to_rgb(color)
         inputs['Base Color'].default_value = (
             color[0], color[1], color[2], 1)
         inputs['Roughness'].default_value = roughness
         inputs['Metallic'].default_value = metallic
         inputs['Specular'].default_value = specular
+        inputs['Transmission'].default_value = transmission
 
-        if opacity != 1:
-            inputs['Transmission'].default_value = 1
-            inputs['Alpha'].default_value = opacity
-            self.mat.blend_method = 'BLEND'
+        self.mat.blend_method = blend_mode
+        # if opacity != 1:
+        #     inputs['Transmission'].default_value = 1
+        #     inputs['Alpha'].default_value = opacity
+        #     self.mat.blend_method = 'BLEND'
 
         if not cast_shadows:
             self.mat.shadow_method = "NONE"
@@ -139,46 +228,81 @@ class Material(NodeMaterial):
                 inputs["Base Color"], texImage.outputs["Color"])
 
 
-class VolumeMaterial:
+class VolumeMaterial(NodeMaterial):
     def __init__(
         self,
         color="#FFFFFF",
         emission=0,
         density=1
     ):
+        super().__init__()
+        self.reset()
+
         color = hex_to_rgb(color)
 
-        mat = bpy.data.materials.new(name='Material')
-        mat.use_nodes = True
-        mat_nodes = mat.node_tree.nodes
-        for node in mat_nodes:
-            mat_nodes.remove(node)
-        links = mat.node_tree.links
-
-        output_node = mat_nodes.new(type='ShaderNodeOutputMaterial')
-        principled_node = mat_nodes.new(type='ShaderNodeVolumePrincipled')
-        links.new(principled_node.outputs[0],
+        output_node = self.nodes.new(type='ShaderNodeOutputMaterial')
+        principled_node = self.nodes.new(type='ShaderNodeVolumePrincipled')
+        self.links.new(principled_node.outputs[0],
                   output_node.inputs['Volume'])
 
         principled_node.color = color
-        mat.node_tree.nodes.active = principled_node
+        self.mat.node_tree.nodes.active = principled_node
         inputs = principled_node.inputs
-
-        # principled_node
-        print(inputs)
         inputs['Color'].default_value = (
             color[0], color[1], color[2], 1)
         inputs['Density'].default_value = density
 
-        # if opacity != 1:
-        #     inputs['Transmission'].default_value = 1
-        #     inputs['Alpha'].default_value = opacity
-        #     mat.blend_method = 'BLEND'
-
-        # if not cast_shadows:
-        #     mat.shadow_method = "NONE"
-
         if emission > 0:
             inputs['Emission Strength'].default_value = emission
 
-        self.mat = mat
+
+class EmissionMaterial(NodeMaterial):
+    def __init__(
+        self,
+        color="#FFFFFF",
+        emission_strength=1
+    ):
+        super().__init__()
+        self.reset()
+
+        color = hex_to_rgb(color)
+
+        output_node = self.nodes.new(type='ShaderNodeOutputMaterial')
+        node = self.nodes.new(type='ShaderNodeEmission')
+        self.links.new(node.outputs[0],
+                  output_node.inputs['Surface'])
+
+        node.color = color
+        self.mat.node_tree.nodes.active = node
+        inputs = node.inputs
+        inputs['Color'].default_value = (
+            color[0], color[1], color[2], 1)
+        inputs['Strength'].default_value = emission_strength
+
+
+class RefractionBSDF(NodeMaterial):
+    def __init__(
+        self,
+        color="#FFFFFF",
+        ior=1.45,
+        roughness=0.5,
+        use_screen_refraction=True
+    ):
+        super().__init__()
+        self.reset()
+        self.mat.use_screen_refraction = use_screen_refraction
+
+        color = hex_to_rgb(color)
+
+        node = self.nodes.new(type='ShaderNodeBsdfRefraction')
+        output_node = self.nodes.new(type='ShaderNodeOutputMaterial')
+
+        node.color = color
+        self.mat.node_tree.nodes.active = node
+        inputs = node.inputs
+        inputs['Color'].default_value = (color[0], color[1], color[2], 1)
+        inputs['IOR'].default_value = ior
+        inputs['Roughness'].default_value = roughness
+        self.links.new(node.outputs[0], output_node.inputs[0])
+        self.bsdf = Node(self.nodes.get("Refraction BSDF"), self)
+        self.material_output = Node(self.nodes.get("Material Output"), self)

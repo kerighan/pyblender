@@ -10,17 +10,15 @@ mat = Material()
 bsdf = mat.bsdf
 color_ramp = mat.create_color_ramp(colors=["#FF0000", "#00FF00"])
 noise_texture = mat.create_noise_texture()
-multiply = mat.create_multiply(value=.1)
-mat.link(noise_texture, multiply, "Fac", 0)
+multiply = mat.create_operation(value=.1)
 
-mat.link(noise_texture, bsdf, "Fac", "Base Color")
-mat.link(multiply, mat.material_output, "Value", "Displacement")
+noise_texture["Fac"].to(multiply[0])
+noise_texture["Fac"].to(bsdf["Base Color"])
+multiply["Value"].to(mat.material_output["Displacement"])
 
-# mat = Material()
 
 Box(location=(0, -1, 0), material=mat)
 Box(location=(0, 1, 0), material=mat)
-
 Sun()
 
 camera = Camera((10, 0, 0))
@@ -28,4 +26,4 @@ camera.look_at((0, 0, 0))
 
 scene = Scene(camera)
 scene.add_bloom()
-scene.render("render.png", fast=True)
+scene.render("render.png", eevee=True)
