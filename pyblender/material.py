@@ -33,8 +33,8 @@ class NodeMaterial:
         self.links = self.mat.node_tree.links
         self.material_output = Node(self.nodes.get("Material Output"), self)
         self.bsdf = Node(self.nodes.get("Principled BSDF"), self)
-    
-    def reset(self):        
+
+    def reset(self):
         for node in self.nodes:
             self.nodes.remove(node)
 
@@ -43,7 +43,13 @@ class NodeMaterial:
     #     node.operation = "MULTIPLY"
     #     node.inputs[1].default_value = value
     #     return Node(node, self)
-    
+
+    def create_displacement(self, scale=1., midlevel=1):
+        node = self.mat.node_tree.nodes.new("ShaderNodeDisplacement")
+        node.inputs["Scale"].default_value = scale
+        node.inputs["Midlevel"].default_value = midlevel
+        return Node(node, self)
+
     def create_texture_coordinate(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexCoord")
         return Node(node, self)
@@ -51,7 +57,7 @@ class NodeMaterial:
     def create_mix_shader(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeMixShader")
         return Node(node, self)
-    
+
     def create_mix_rgb(self, fac=.5):
         node = self.mat.node_tree.nodes.new("ShaderNodeMixRGB")
         node.inputs["Fac"].default_value = fac
@@ -67,7 +73,7 @@ class NodeMaterial:
         node.inputs["Strength"].default_value = strength
         node.inputs["Color"].default_value = hex_to_rgba(color)
         return Node(node, self)
-    
+
     def create_mapping(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeMapping")
         return Node(node, self)
@@ -79,7 +85,7 @@ class NodeMaterial:
     def create_bump(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeBump")
         return Node(node, self)
-    
+
     def create_checker_texture(self, scale=5):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexChecker")
         node.inputs["Scale"].default_value = scale
@@ -102,9 +108,16 @@ class NodeMaterial:
         node.inputs[1].default_value = value
         return Node(node, self)
 
-    def create_color_ramp(self, color_mode="RGB", colors=None, positions=None):
+    def create_color_ramp(
+        self,
+        color_mode="RGB",
+        colors=None,
+        positions=None,
+        interpolation="LINEAR"
+    ):
         node = self.mat.node_tree.nodes.new("ShaderNodeValToRGB")
         node.color_ramp.color_mode = color_mode
+        node.color_ramp.interpolation = interpolation
 
         if colors is not None:
             colors = [hex_to_rgba(c) for c in colors]
@@ -150,7 +163,7 @@ class Node:
         self._node = node
         self._mat = mat
         self._current = None
-    
+
     def link_to(self, target, output="Color", input="Base Color"):
         self._mat.link(self, target, output, input)
 
@@ -160,14 +173,14 @@ class Node:
         for frame, value in zip(frames, values):
             path.default_value = value
             path.keyframe_insert(data_path="default_value", frame=frame)
-    
+
     def __setitem__(self, key, value):
         self._node.inputs[key].default_value = value
-    
+
     def __getitem__(self, key):
         self._current = key
         return self
-    
+
     def to(self, target):
         self._mat.link(self, target, self._current, target._current)
         target._current = None
@@ -187,7 +200,8 @@ class Material(NodeMaterial):
         transmission=0,
         texture=None,
         cast_shadows=True,
-        blend_mode="OPAQUE"
+        blend_mode="OPAQUE",
+        displace=False
     ):
         super().__init__()
 
@@ -203,6 +217,9 @@ class Material(NodeMaterial):
         inputs['Transmission'].default_value = transmission
 
         self.mat.blend_method = blend_mode
+
+        if displace:
+            self.mat.cycles.displacement_method = "DISPLACEMENT"
         # if opacity != 1:
         #     inputs['Transmission'].default_value = 1
         #     inputs['Alpha'].default_value = opacity
@@ -214,11 +231,11 @@ class Material(NodeMaterial):
         if emission_strength > 0:
             if emission_color is None:
                 inputs['Emission'].default_value = (
-                    color[0], color[1], color[2], opacity)
+                    color[0], color[1], color[2], 1)
             else:
                 ec = hex_to_rgb(emission_color)
                 inputs['Emission'].default_value = (
-                    ec[0], ec[1], ec[2], opacity)
+                    ec[0], ec[1], ec[2], 1)
             inputs['Emission Strength'].default_value = emission_strength
 
         if texture is not None:
@@ -243,7 +260,7 @@ class VolumeMaterial(NodeMaterial):
         output_node = self.nodes.new(type='ShaderNodeOutputMaterial')
         principled_node = self.nodes.new(type='ShaderNodeVolumePrincipled')
         self.links.new(principled_node.outputs[0],
-                  output_node.inputs['Volume'])
+                       output_node.inputs['Volume'])
 
         principled_node.color = color
         self.mat.node_tree.nodes.active = principled_node
@@ -270,7 +287,7 @@ class EmissionMaterial(NodeMaterial):
         output_node = self.nodes.new(type='ShaderNodeOutputMaterial')
         node = self.nodes.new(type='ShaderNodeEmission')
         self.links.new(node.outputs[0],
-                  output_node.inputs['Surface'])
+                       output_node.inputs['Surface'])
 
         node.color = color
         self.mat.node_tree.nodes.active = node

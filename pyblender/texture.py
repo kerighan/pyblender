@@ -1,5 +1,6 @@
-import bpy
 import os
+
+import bpy
 
 execution_dir = os.getcwd()
 # print(os.path.abspath(os.path.dirname(__file__)))
@@ -7,7 +8,8 @@ execution_dir = os.getcwd()
 
 class Image:
     def __init__(self, src):
-        self.img = bpy.data.images.load(os.path.join(execution_dir, src), check_existing=False)
+        self.img = bpy.data.images.load(os.path.join(
+            execution_dir, src), check_existing=False)
 
 
 class Texture:

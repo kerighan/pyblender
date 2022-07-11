@@ -1,8 +1,8 @@
-import bpy
 import bmesh
+import bpy
 
-from .utils import look_at, random_string
 from .geometry import GeoNodes
+from .utils import look_at, random_string
 
 
 class Mesh:
@@ -14,7 +14,7 @@ class Mesh:
         if not visible:
             self.obj.hide_viewport = True
             self.obj.hide_render = True
-    
+
     def shade_smooth(self):
         for f in self.obj.data.polygons:
             f.use_smooth = True
@@ -22,30 +22,33 @@ class Mesh:
     def init(self, material, visible):
         self.add_material(material)
         self.set_visible(visible)
-        
+
     def modify_wireframe(self, thickness=.02):
         m = self.obj.modifiers.new('wireframe', 'WIREFRAME')
         m.thickness = thickness
         return m
-    
+
     def modify_subdivide(self, levels=1, render_levels=2, quality=3):
         m = self.obj.modifiers.new('subdivide', 'SUBSURF')
         m.levels = levels
         m.render_levels = render_levels
         m.quality = quality
         return m
-    
+
     def modify_displace(self, tex, strength=1):
         m = self.obj.modifiers.new('displace', 'DISPLACE')
         m.strength = strength
         m.texture = tex.texture
         return m
-    
+
     def modify_mirror(self, object=None, axis=(True, True, True)):
         m = self.obj.modifiers.new('mirror', 'MIRROR')
         m.use_axis = axis
         if object is not None:
             m.mirror_object = object.obj
+
+    def modify_smooth(self):
+        m = self.obj.modifiers.new('smooth', 'SMOOTH')
 
     def animate_rotation(self, values, frames=None):
         if frames is None:
@@ -90,8 +93,8 @@ class Mesh:
             constraint.target = item.obj
 
     def remove_face(self, direction="up", limit=.5):
-        from .utils import (
-            face_left, face_right, face_back, face_front, face_down, face_up)
+        from .utils import (face_back, face_down, face_front, face_left,
+                            face_right, face_up)
         if direction == "up":
             func = face_up
         elif direction == "down":
@@ -104,7 +107,7 @@ class Mesh:
             func = face_front
         elif direction == "back":
             func = face_back
-        
+
         bpy.context.view_layer.objects.active = self.obj
 
         previous_mode = self.obj.mode
@@ -121,6 +124,8 @@ class Mesh:
         bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
 
     def subdivide(self, cuts=1):
+        bpy.context.view_layer.objects.active = self.obj
+
         previous_mode = self.obj.mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bm = bmesh.new()
@@ -130,7 +135,7 @@ class Mesh:
         bm.to_mesh(self.obj.data)
         self.obj.data.update()
         bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
-    
+
     def create_geomtry_nodes(self):
         nodes = self.obj.modifiers.new(name="GeometryNodes", type='NODES')
         return GeoNodes(nodes)
@@ -258,7 +263,7 @@ class Grid(Mesh):
     ):
 
         bpy.ops.mesh.primitive_grid_add(
-            x_subdivisions=width, y_subdivisions=height, rotation=rotation, size=size, scale=scale)
+            x_subdivisions=width, y_subdivisions=height, rotation=rotation, size=size, scale=scale, location=location)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 

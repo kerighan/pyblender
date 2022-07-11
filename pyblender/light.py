@@ -67,3 +67,10 @@ class SpotLight:
         for frame, energy in zip(frames, values):
             self.light_data.energy = energy
             self.light_data.keyframe_insert("energy", frame=frame)
+
+    def look_at(self, item):
+        if isinstance(item, tuple):
+            look_at(self.obj, item)
+        else:
+            constraint = self.obj.constraints.new(type='TRACK_TO')
+            constraint.target = item.obj
