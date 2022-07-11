@@ -32,11 +32,9 @@ plane.modify_subdivide()
 
 
 monolith_mat = RefractionBSDF(ior=1.1, roughness=.9)
-noise_3 = monolith_mat.create_noise_texture(
-    scale=200, detail=8)
-noise_3["Fac"].to(monolith_mat.bsdf["Roughness"])
-
-
+# noise_3 = monolith_mat.create_noise_texture(
+#     scale=200, detail=8, distortion=.5)
+# noise_3["Fac"].to(monolith_mat.bsdf["Roughness"])
 monolith = Box(scale=(.3, 1.2, 2.7), size=.1,
                rotation=(0, 0, 3.141/6),
                location=(3.5, 0, 0.11),
