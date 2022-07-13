@@ -69,14 +69,19 @@ class Scene:
         directory = os.getcwd()
         if ".mp4" in filename:
             import glob
-            if export_folder[-1] != "/":
-                export_folder += "\\"
+            if os.name == 'nt':
+                if export_folder[-1] != "\\":
+                    export_folder += "\\"
+            else:
+                if export_folder[-1] != "/":
+                    export_folder += "/"
             export_folder = os.path.join(directory, export_folder)
             for f in glob.glob(export_folder+"*.png"):
                 os.remove(f)
         else:
             export_folder = os.path.join(directory, filename)
 
+        self.scene.view_settings.look = "Medium High Contrast"
         self.scene.render.image_settings.file_format = 'PNG'
         self.scene.render.filepath = export_folder
         self.scene.render.resolution_x = size[0]
@@ -87,7 +92,7 @@ class Scene:
             cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                    f'"{export_folder}%4d.png" '
                    f'-c:v libx264 -vf "fps=fps={frame_rate}" '
-                   f'-force_key_frames expr:gte(t,n_forced*1) -crf {crf} '
+                   f'-force_key_frames expr:gte\(t,n_forced*1\) -crf {crf} '
                    f'-profile main -pix_fmt yuv420p {filename}')
             subprocess.check_output(cmd, shell=True)
 
@@ -101,3 +106,41 @@ class Scene:
         self.scene.eevee.bloom_radius = radius
         self.scene.eevee.bloom_threshold = threshold
         self.scene.eevee.use_bloom = True
+
+    def add_glare(self, size=8, mix=0, fade=0, dispersion=0.01, saturation=1.1, gain=1.1):
+        self.scene.render.use_compositing = True
+        self.scene.use_nodes = True
+        tree = self.scene.node_tree
+        nodes = tree.nodes
+        links = tree.links
+
+        layers_node = nodes["Render Layers"]
+        composite_node = nodes["Composite"]
+
+        color_correction_node = self.scene.node_tree.nodes.new(
+            type="CompositorNodeColorCorrection")
+        color_correction_node.master_saturation = saturation
+        color_correction_node.master_gain = gain
+
+        lens_distortion_node = self.scene.node_tree.nodes.new(
+            type="CompositorNodeLensdist")
+        lens_distortion_node.inputs["Distort"].default_value = - \
+            dispersion * 0.40
+        lens_distortion_node.inputs["Dispersion"].default_value = dispersion
+
+        glare_node = self.scene.node_tree.nodes.new(type="CompositorNodeGlare")
+        glare_node.glare_type = 'FOG_GLOW'
+        glare_node.quality = 'HIGH'
+        glare_node.fade = fade
+        glare_node.mix = mix
+        glare_node.size = size
+
+        # composite_node = self.scene.node_tree.nodes.new(
+        #     type="CompositorNodeComposite")
+        links.new(layers_node.outputs["Image"],
+                  lens_distortion_node.inputs["Image"])
+        links.new(lens_distortion_node.outputs["Image"],
+                  color_correction_node.inputs["Image"])
+        links.new(
+            color_correction_node.outputs["Image"], glare_node.inputs["Image"])
+        links.new(glare_node.outputs["Image"], composite_node.inputs["Image"])

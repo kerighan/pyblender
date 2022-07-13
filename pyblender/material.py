@@ -44,6 +44,11 @@ class NodeMaterial:
     #     node.inputs[1].default_value = value
     #     return Node(node, self)
 
+    def create_gradient_texture(self, gradient_type="LINEAR"):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexGradient")
+        node.gradient_type = gradient_type
+        return Node(node, self)
+
     def create_displacement(self, scale=1., midlevel=1):
         node = self.mat.node_tree.nodes.new("ShaderNodeDisplacement")
         node.inputs["Scale"].default_value = scale
@@ -84,6 +89,16 @@ class NodeMaterial:
 
     def create_bump(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeBump")
+        return Node(node, self)
+
+    def create_texture(
+        self, image, rotation=(0, 0, 0), scale=(1, 1, 1), frame_offset=0
+    ):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexImage")
+        node.image = image.img
+        node.texture_mapping.rotation = rotation
+        node.texture_mapping.scale = scale
+        node.image_user.frame_offset = frame_offset
         return Node(node, self)
 
     def create_checker_texture(self, scale=5):
@@ -167,12 +182,13 @@ class Node:
     def link_to(self, target, output="Color", input="Base Color"):
         self._mat.link(self, target, output, input)
 
-    def animate(self, key, values, frames=None):
+    def animate(self, key, values, frames=None, interpolation="LINEAR"):
         path = self._node.inputs[key]
         frames = range(len(values)) if frames is None else frames
         for frame, value in zip(frames, values):
             path.default_value = value
             path.keyframe_insert(data_path="default_value", frame=frame)
+            # kf.interpolation = interpolation
 
     def __setitem__(self, key, value):
         self._node.inputs[key].default_value = value

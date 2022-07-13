@@ -3,7 +3,6 @@ import os
 import bpy
 
 execution_dir = os.getcwd()
-# print(os.path.abspath(os.path.dirname(__file__)))
 
 
 class Image:

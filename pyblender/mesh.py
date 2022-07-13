@@ -50,19 +50,23 @@ class Mesh:
     def modify_smooth(self):
         m = self.obj.modifiers.new('smooth', 'SMOOTH')
 
-    def animate_rotation(self, values, frames=None):
+    def animate_rotation(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:
             frames = range(len(values))
         for frame, rotation in zip(frames, values):
             self.obj.rotation_euler = rotation
-            self.obj.keyframe_insert("rotation_euler", index=2, frame=frame)
+            kf = self.obj.keyframe_insert(
+                "rotation_euler", index=2, frame=frame)
+            # kf.interpolation = interpolation
 
-    def animate_rotation_z(self, values, frames=None):
+    def animate_rotation_z(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:
             frames = range(len(values))
         for frame, rotation in zip(frames, values):
             self.obj.rotation_euler = (0, 0, rotation)
-            self.obj.keyframe_insert("rotation_euler", index=2, frame=frame)
+            kf = self.obj.keyframe_insert(
+                "rotation_euler", index=2, frame=frame)
+            # kf.interpolation = interpolation
 
     def animate_location(self, values, frames=None):
         if frames is None:
@@ -228,6 +232,27 @@ class Box(Mesh):
             size=size, location=location,
             scale=scale, rotation=rotation)
         self.obj = bpy.context.scene.objects[-1]
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.uv.reset()
+        bm = bmesh.from_edit_mesh(self.obj.data)
+
+        bm.edges.ensure_lookup_table()
+        for edge in bm.edges:
+            edge.seam = True
+
+        bm.faces.ensure_lookup_table()
+        for face in bm.faces:
+            face.select_set(False)
+
+        for face in bm.faces:
+            face.material_index = 0
+            face.select_set(True)
+            bmesh.update_edit_mesh(self.obj.data)
+            bpy.ops.uv.unwrap()
+            face.select_set(False)
+
+        bpy.ops.object.mode_set(mode='OBJECT')
         self.init(material, visible)
 
 
