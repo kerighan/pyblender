@@ -38,11 +38,11 @@ class NodeMaterial:
         for node in self.nodes:
             self.nodes.remove(node)
 
-    # def create_bevel(self):
-    #     node = self.mat.node_tree.nodes.new("ShaderNodeBevel")
-    #     node.operation = "MULTIPLY"
-    #     node.inputs[1].default_value = value
-    #     return Node(node, self)
+    def create_bevel(self, value=1):
+        node = self.mat.node_tree.nodes.new("ShaderNodeBevel")
+        node.operation = "MULTIPLY"
+        node.inputs[1].default_value = value
+        return Node(node, self)
 
     def create_gradient_texture(self, gradient_type="LINEAR"):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexGradient")

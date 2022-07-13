@@ -39,7 +39,8 @@ class Scene:
         export_folder="render",
         samples=64,
         gravity=(0.0, 0.0, -9.81),
-        crf=18
+        crf=18,
+        contrast="Medium High Contrast"
     ):
         self.scene.gravity = gravity
         if eevee:
@@ -81,7 +82,7 @@ class Scene:
         else:
             export_folder = os.path.join(directory, filename)
 
-        self.scene.view_settings.look = "Medium High Contrast"
+        self.scene.view_settings.look = contrast
         self.scene.render.image_settings.file_format = 'PNG'
         self.scene.render.filepath = export_folder
         self.scene.render.resolution_x = size[0]

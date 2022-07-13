@@ -26,10 +26,16 @@ class Noise:
         noise_scale=.25, distortion=1., nabla=.025, intensity=1, name="noise"
     ):
         t = bpy.data.textures.new(name=name, type=type)
-        t.distortion = distortion
+        try:
+            t.distortion = distortion
+        except AttributeError:
+            pass
         t.nabla = nabla
         t.intensity = intensity
         t.noise_scale = noise_scale
         t.noise_basis = noise_basis
-        t.noise_distortion = noise_distortion
+        try:
+            t.noise_distortion = noise_distortion
+        except AttributeError:
+            pass
         self.texture = t

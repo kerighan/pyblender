@@ -1,7 +1,7 @@
 import bmesh
 import bpy
 
-from .geometry import GeoNodes
+from .geometry import Geometry
 from .utils import look_at, random_string
 
 
@@ -9,6 +9,12 @@ class Mesh:
     def add_material(self, material):
         if material is not None:
             self.obj.data.materials.append(material.mat)
+
+    def set_material(self, material):
+        try:
+            self.obj.data.materials[0] = material.mat
+        except IndexError:
+            self.add_material(material)
 
     def set_visible(self, visible):
         if not visible:
@@ -23,6 +29,9 @@ class Mesh:
         self.add_material(material)
         self.set_visible(visible)
 
+    def modify_geometry(self):
+        return Geometry(self.obj)
+
     def modify_wireframe(self, thickness=.02):
         m = self.obj.modifiers.new('wireframe', 'WIREFRAME')
         m.thickness = thickness
@@ -35,10 +44,11 @@ class Mesh:
         m.quality = quality
         return m
 
-    def modify_displace(self, tex, strength=1):
+    def modify_displace(self, texture=None, strength=1):
         m = self.obj.modifiers.new('displace', 'DISPLACE')
         m.strength = strength
-        m.texture = tex.texture
+        if texture is not None:
+            m.texture = texture.texture
         return m
 
     def modify_mirror(self, object=None, axis=(True, True, True)):
@@ -140,10 +150,6 @@ class Mesh:
         self.obj.data.update()
         bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
 
-    def create_geomtry_nodes(self):
-        nodes = self.obj.modifiers.new(name="GeometryNodes", type='NODES')
-        return GeoNodes(nodes)
-
 
 class Empty(Mesh):
     def __init__(self, location):
@@ -226,6 +232,7 @@ class Box(Mesh):
         scale=(1, 1, 1),
         size=1,
         material=None,
+        uv_unwrap=False,
         visible=True
     ):
         bpy.ops.mesh.primitive_cube_add(
@@ -233,26 +240,28 @@ class Box(Mesh):
             scale=scale, rotation=rotation)
         self.obj = bpy.context.scene.objects[-1]
 
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.uv.reset()
-        bm = bmesh.from_edit_mesh(self.obj.data)
+        if uv_unwrap:
+            bpy.context.scene.objects.active = self.obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.uv.reset()
+            bm = bmesh.from_edit_mesh(self.obj.data)
 
-        bm.edges.ensure_lookup_table()
-        for edge in bm.edges:
-            edge.seam = True
+            bm.edges.ensure_lookup_table()
+            for edge in bm.edges:
+                edge.seam = True
 
-        bm.faces.ensure_lookup_table()
-        for face in bm.faces:
-            face.select_set(False)
+            bm.faces.ensure_lookup_table()
+            for face in bm.faces:
+                face.select_set(False)
 
-        for face in bm.faces:
-            face.material_index = 0
-            face.select_set(True)
-            bmesh.update_edit_mesh(self.obj.data)
-            bpy.ops.uv.unwrap()
-            face.select_set(False)
+            for face in bm.faces:
+                face.material_index = 0
+                face.select_set(True)
+                bmesh.update_edit_mesh(self.obj.data)
+                bpy.ops.uv.unwrap()
+                face.select_set(False)
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode='OBJECT')
         self.init(material, visible)
 
 
