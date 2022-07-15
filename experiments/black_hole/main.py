@@ -61,4 +61,9 @@ camera.look_at((0, 0, 0))
 camera.obj.delta_rotation_euler = (-np.pi / 12, 0.01, -0.03)
 scene = Scene(camera)
 scene.set_animation_bounds(0, 199)
-scene.render("render.mp4", use_ssr_refraction=True, size=(1000, 1000), samples=64, frame_rate=24)
+scene.render("render.mp4",
+             use_ssr_refraction=True,
+             eevee=True,
+             size=(1000, 1000),
+             samples=64,
+             frame_rate=24)
