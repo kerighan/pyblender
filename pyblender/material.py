@@ -38,15 +38,14 @@ class NodeMaterial:
         for node in self.nodes:
             self.nodes.remove(node)
 
+    def create_principled_bsdf(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+        return Node(node, self)
+
     def create_bevel(self, value=1):
         node = self.mat.node_tree.nodes.new("ShaderNodeBevel")
         node.operation = "MULTIPLY"
         node.inputs[1].default_value = value
-        return Node(node, self)
-
-    def create_gradient_texture(self, gradient_type="LINEAR"):
-        node = self.mat.node_tree.nodes.new("ShaderNodeTexGradient")
-        node.gradient_type = gradient_type
         return Node(node, self)
 
     def create_displacement(self, scale=1., midlevel=1):
@@ -101,6 +100,11 @@ class NodeMaterial:
         node.image_user.frame_offset = frame_offset
         return Node(node, self)
 
+    def create_gradient_texture(self, gradient_type="LINEAR"):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexGradient")
+        node.gradient_type = gradient_type
+        return Node(node, self)
+
     def create_checker_texture(self, scale=5):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexChecker")
         node.inputs["Scale"].default_value = scale
@@ -115,6 +119,43 @@ class NodeMaterial:
         node = self.mat.node_tree.nodes.new("ShaderNodeTexVoronoi")
         node.inputs["Scale"].default_value = scale
         node.distance = distance
+        return Node(node, self)
+
+    def create_wave_texture(
+        self,
+        scale=5, distortion=1, detail=2, detail_scale=1,
+        detail_roughness=0.5, phase_offset=0,
+        wave_type="BANDS", wave_profile="SIN"
+    ):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexWave")
+        node.wave_type = wave_type
+        node.wave_profile = wave_profile
+        node.inputs["Scale"].default_value = scale
+        node.inputs["Distortion"].default_value = distortion
+        node.inputs["Detail"].default_value = detail
+        node.inputs["Detail Scale"].default_value = detail_scale
+        node.inputs["Detail Roughness"].default_value = detail_roughness
+        node.inputs["Phase Offset"].default_value = phase_offset
+        return Node(node, self)
+
+    def create_magic_texture(self, scale=5, distortion=1):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexMagic")
+        node.inputs["Scale"].default_value = scale
+        node.inputs["Distortion"].default_value = distortion
+        return Node(node, self)
+
+    def create_musgrave_texture(
+        self, scale=5, detail=2, dimension=2, lacunarity=2,
+        musgrave_type="MULTIFRACTAL", offset=0, gain=1
+    ):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexMusgrave")
+        node.inputs["Scale"].default_value = scale
+        node.inputs["Detail"].default_value = detail
+        node.inputs["Dimension"].default_value = dimension
+        node.inputs["Lacunarity"].default_value = lacunarity
+        node.inputs["Offset"].default_value = offset
+        node.inputs["Gain"].default_value = gain
+        node.musgrave_type = musgrave_type
         return Node(node, self)
 
     def create_operation(self, operation="MULTIPLY", value=5):

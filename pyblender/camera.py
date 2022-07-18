@@ -44,3 +44,11 @@ class Camera:
         for frame, location in zip(frames, values):
             self.obj.location = location
             self.obj.keyframe_insert("location", frame=frame)
+
+        for fc in self.obj.animation_data.action.fcurves:
+            fc.extrapolation = 'LINEAR'  # Set extrapolation type
+
+        # Iterate over this fcurve's keyframes and set handles to vector
+        for kp in fc.keyframe_points:
+            kp.handle_left_type = 'VECTOR'
+            kp.handle_right_type = 'VECTOR'

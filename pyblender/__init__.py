@@ -43,6 +43,7 @@ class Scene:
         contrast="Medium High Contrast"
     ):
         self.scene.gravity = gravity
+
         if eevee:
             self.scene.render.engine = "BLENDER_EEVEE"
             self.scene.eevee.use_ssr = use_ssr
