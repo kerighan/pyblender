@@ -52,3 +52,19 @@ class Camera:
         for kp in fc.keyframe_points:
             kp.handle_left_type = 'VECTOR'
             kp.handle_right_type = 'VECTOR'
+
+    def animate_rotation(self, values, frames=None):
+        if frames is None:
+            frames = range(len(values))
+        print(self.obj.rotation_euler)
+        for frame, rotation in zip(frames, values):
+            self.obj.rotation_euler = rotation
+            self.obj.keyframe_insert("rotation_euler", frame=frame)
+
+        for fc in self.obj.animation_data.action.fcurves:
+            fc.extrapolation = 'LINEAR'  # Set extrapolation type
+
+        # Iterate over this fcurve's keyframes and set handles to vector
+        for kp in fc.keyframe_points:
+            kp.handle_left_type = 'VECTOR'
+            kp.handle_right_type = 'VECTOR'
