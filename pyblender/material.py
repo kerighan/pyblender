@@ -42,6 +42,22 @@ class NodeMaterial:
         node = self.mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
         return Node(node, self)
 
+    def create_transparent_bsdf(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeBsdfTransparent")
+        return Node(node, self)
+
+    def create_volume_scatter(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeVolumeScatter")
+        return Node(node, self)
+
+    def create_normal_map(self, tex=None, strength=10):
+        node = self.mat.node_tree.nodes.new("ShaderNodeNormalMap")
+        node.inputs["Strength"].default_value = strength
+        node = Node(node, self)
+        if tex is not None:
+            tex["Color"].to(node["Color"])
+        return node
+
     def create_bevel(self, value=1):
         node = self.mat.node_tree.nodes.new("ShaderNodeBevel")
         node.operation = "MULTIPLY"
@@ -54,17 +70,23 @@ class NodeMaterial:
         node.inputs["Midlevel"].default_value = midlevel
         return Node(node, self)
 
-    def create_texture_coordinate(self):
+    def create_texture_coordinate(self, use_mapping=True):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexCoord")
-        return Node(node, self)
+        node = Node(node, self)
+        if use_mapping:
+            mapping = self.create_mapping()
+            node["Generated"].to(mapping["Vector"])
+        return node, mapping
 
-    def create_mix_shader(self):
+    def create_mix_shader(self, fac=.5):
         node = self.mat.node_tree.nodes.new("ShaderNodeMixShader")
+        node.inputs["Fac"].default_value = fac
         return Node(node, self)
 
-    def create_mix_rgb(self, fac=.5):
+    def create_mix_rgb(self, fac=.5, blend_type="MIX"):
         node = self.mat.node_tree.nodes.new("ShaderNodeMixRGB")
         node.inputs["Fac"].default_value = fac
+        node.blend_type = blend_type
         return Node(node, self)
 
     def create_layer_weight(self, blend=.5):
@@ -86,15 +108,21 @@ class NodeMaterial:
         node = self.mat.node_tree.nodes.new("ShaderNodeNewGeometry")
         return Node(node, self)
 
-    def create_bump(self):
+    def create_bump(self, strength=1.):
         node = self.mat.node_tree.nodes.new("ShaderNodeBump")
+        node.inputs["Strength"].default_value = strength
         return Node(node, self)
 
     def create_texture(
-        self, image, rotation=(0, 0, 0), scale=(1, 1, 1), frame_offset=0
+        self, image,
+        rotation=(0, 0, 0),
+        scale=(1, 1, 1),
+        frame_offset=0,
+        projection="FLAT"
     ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexImage")
         node.image = image.img
+        node.projection = projection
         node.texture_mapping.rotation = rotation
         node.texture_mapping.scale = scale
         node.image_user.frame_offset = frame_offset
@@ -177,15 +205,20 @@ class NodeMaterial:
 
         if colors is not None:
             colors = [hex_to_rgba(c) for c in colors]
+            if len(colors) > 2:
+                for i in range(len(colors) - 2):
+                    node.color_ramp.elements.new(.2)
             for i in range(len(colors)):
                 node.color_ramp.elements[i].color = colors[i]
         if positions is not None:
+            if colors is not None:
+                assert len(positions) == len(colors)
             for i in range(len(positions)):
                 node.color_ramp.elements[i].position = positions[i]
         return Node(node, self)
 
     def create_noise_texture(
-        self, color=None, scale=5, detail=2, distortion=0, noise_dimensions="3D"
+        self, color=None, scale=5, detail=2, distortion=0, noise_dimensions="3D", roughness=.5
     ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexNoise")
         if color is not None:
@@ -195,6 +228,7 @@ class NodeMaterial:
         node.inputs["Scale"].default_value = scale
         node.inputs["Detail"].default_value = detail
         node.inputs["Distortion"].default_value = distortion
+        node.inputs["Roughness"].default_value = roughness
         node.noise_dimensions = noise_dimensions
         return Node(node, self)
 
@@ -243,6 +277,16 @@ class Node:
         target._current = None
         self._current = None
 
+    def unlink(self):
+        # for node in self._mat.nodes:
+        for socket in self._node.inputs:
+            if self._current is None:
+                for link in socket.links:
+                    self._mat.links.remove(link)
+            elif self._current == socket.name:
+                for link in socket.links:
+                    self._mat.links.remove(link)
+
 
 class Material(NodeMaterial):
     def __init__(
@@ -251,13 +295,13 @@ class Material(NodeMaterial):
         roughness=.5,
         metallic=.5,
         specular=0,
-        # opacity=1,
         emission_strength=0,
         emission_color=None,
         transmission=0,
         texture=None,
         cast_shadows=True,
         blend_mode="OPAQUE",
+        shadow_mode=None,
         displace=False
     ):
         super().__init__()
@@ -277,12 +321,10 @@ class Material(NodeMaterial):
 
         if displace:
             self.mat.cycles.displacement_method = "DISPLACEMENT"
-        # if opacity != 1:
-        #     inputs['Transmission'].default_value = 1
-        #     inputs['Alpha'].default_value = opacity
-        #     self.mat.blend_method = 'BLEND'
 
-        if not cast_shadows:
+        if shadow_mode is not None:
+            self.mat.shadow_method = shadow_mode
+        elif not cast_shadows:
             self.mat.shadow_method = "NONE"
 
         if emission_strength > 0:
