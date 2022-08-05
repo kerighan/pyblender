@@ -1,3 +1,5 @@
+from math import radians
+
 import bpy
 import numpy as np
 
@@ -39,7 +41,7 @@ class PointLight:
 class SpotLight:
     def __init__(
         self, location, rotation=(0, 0, 0), energy=50, color=None,
-        focus_point=None, attenuation=1, blend=.15, size=0.785398
+        focus_point=None, attenuation=1, blend=.15, angle=45
     ):
         light_data = bpy.data.lights.new('light', type='SPOT')
         light = bpy.data.objects.new('light', light_data)
@@ -51,7 +53,7 @@ class SpotLight:
         light.data.energy = energy
         light.data.constant_coefficient = attenuation
         light.data.spot_blend = blend
-        light.data.spot_size = size
+        light.data.spot_size = radians(angle)
 
         self.light_data = light_data
         if color is not None:

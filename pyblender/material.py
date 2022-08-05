@@ -58,6 +58,15 @@ class NodeMaterial:
             tex["Color"].to(node["Color"])
         return node
 
+    def create_hue_saturation(self, hue=.5, saturation=1., value=1., fac=1.):
+        node = self.mat.node_tree.nodes.new("ShaderNodeHueSaturation")
+        node = Node(node, self)
+        node["Hue"] = hue
+        node["Saturation"] = saturation
+        node["Value"] = value
+        node["Fac"] = fac
+        return node
+
     def create_bevel(self, value=1):
         node = self.mat.node_tree.nodes.new("ShaderNodeBevel")
         node.operation = "MULTIPLY"
@@ -152,12 +161,13 @@ class NodeMaterial:
     def create_wave_texture(
         self,
         scale=5, distortion=1, detail=2, detail_scale=1,
-        detail_roughness=0.5, phase_offset=0,
+        detail_roughness=0.5, phase_offset=0, rings_direction="X",
         wave_type="BANDS", wave_profile="SIN"
     ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexWave")
         node.wave_type = wave_type
         node.wave_profile = wave_profile
+        node.rings_direction = rings_direction
         node.inputs["Scale"].default_value = scale
         node.inputs["Distortion"].default_value = distortion
         node.inputs["Detail"].default_value = detail
@@ -174,7 +184,8 @@ class NodeMaterial:
 
     def create_musgrave_texture(
         self, scale=5, detail=2, dimension=2, lacunarity=2,
-        musgrave_type="MULTIFRACTAL", offset=0, gain=1
+        musgrave_type="MULTIFRACTAL", offset=0, gain=1,
+        noise_dimensions="3D"
     ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexMusgrave")
         node.inputs["Scale"].default_value = scale
@@ -184,12 +195,36 @@ class NodeMaterial:
         node.inputs["Offset"].default_value = offset
         node.inputs["Gain"].default_value = gain
         node.musgrave_type = musgrave_type
+        node.musgrave_dimensions = noise_dimensions
+        return Node(node, self)
+
+    def create_noise_texture(
+        self, color=None, scale=5, detail=2, distortion=0, noise_dimensions="3D", roughness=.5
+    ):
+        node = self.mat.node_tree.nodes.new("ShaderNodeTexNoise")
+        if color is not None:
+            color = hex_to_rgb(color)
+            node.use_custom_color = True
+            node.color = color
+        node.inputs["Scale"].default_value = scale
+        node.inputs["Detail"].default_value = detail
+        node.inputs["Distortion"].default_value = distortion
+        node.inputs["Roughness"].default_value = roughness
+        node.noise_dimensions = noise_dimensions
         return Node(node, self)
 
     def create_operation(self, operation="MULTIPLY", value=5):
         node = self.mat.node_tree.nodes.new("ShaderNodeMath")
         node.operation = operation
         node.inputs[1].default_value = value
+        return Node(node, self)
+
+    def create_map_range(self, source=[0, 1], target=[0, 1]):
+        node = self.mat.node_tree.nodes.new("ShaderNodeMapRange")
+        node.inputs[1].default_value = source[0]
+        node.inputs[2].default_value = source[1]
+        node.inputs[3].default_value = target[0]
+        node.inputs[4].default_value = target[1]
         return Node(node, self)
 
     def create_color_ramp(
@@ -215,21 +250,6 @@ class NodeMaterial:
                 assert len(positions) == len(colors)
             for i in range(len(positions)):
                 node.color_ramp.elements[i].position = positions[i]
-        return Node(node, self)
-
-    def create_noise_texture(
-        self, color=None, scale=5, detail=2, distortion=0, noise_dimensions="3D", roughness=.5
-    ):
-        node = self.mat.node_tree.nodes.new("ShaderNodeTexNoise")
-        if color is not None:
-            color = hex_to_rgb(color)
-            node.use_custom_color = True
-            node.color = color
-        node.inputs["Scale"].default_value = scale
-        node.inputs["Detail"].default_value = detail
-        node.inputs["Distortion"].default_value = distortion
-        node.inputs["Roughness"].default_value = roughness
-        node.noise_dimensions = noise_dimensions
         return Node(node, self)
 
     def get_node(self, name):

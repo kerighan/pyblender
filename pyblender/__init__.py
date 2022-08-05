@@ -7,7 +7,7 @@ from .camera import Camera
 from .light import PointLight, SpotLight, Sun
 from .material import Material, VolumeMaterial
 from .mesh import Box, Cube, Grid, Line, Plane, Sphere
-from .utils import hex_to_rgb
+from .utils import hex_to_rgb, hex_to_rgba
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
@@ -28,6 +28,7 @@ class Scene:
         self,
         filename,
         size=(640, 480),
+        background_color="#000000",
         eevee=True,
         use_gpu=True,
         use_ssr=True,
@@ -35,14 +36,20 @@ class Scene:
         use_gtao=True,
         use_motion_blur=False,
         frame_rate=60,
-        volumetric=False,
+        frame=1,
+        exposure=0,
+        gamma=1,
+        use_volumetric_shadows=False,
         export_folder="render",
         samples=64,
+        volumetric_tile_size="8",
+        volumetric_samples=64,
         gravity=(0.0, 0.0, -9.81),
         crf=18,
         contrast="Medium High Contrast"
     ):
         self.scene.gravity = gravity
+        self.scene.frame_set(frame)
 
         if eevee:
             self.scene.render.engine = "BLENDER_EEVEE"
@@ -51,7 +58,9 @@ class Scene:
             self.scene.eevee.use_gtao = use_gtao
             self.scene.eevee.use_motion_blur = use_motion_blur
             self.scene.eevee.taa_render_samples = samples
-            if volumetric:
+            self.scene.eevee.volumetric_tile_size = volumetric_tile_size
+            self.scene.eevee.volumetric_samples = volumetric_samples
+            if use_volumetric_shadows:
                 self.scene.eevee.use_volumetric_shadows = True
         else:
             self.scene.render.engine = "CYCLES"
@@ -83,13 +92,25 @@ class Scene:
         else:
             export_folder = os.path.join(directory, filename)
 
+        # export settings
         self.scene.view_settings.look = contrast
+        self.scene.view_settings.exposure = exposure
+        self.scene.view_settings.gamma = gamma
         self.scene.render.image_settings.file_format = 'PNG'
         self.scene.render.filepath = export_folder
         self.scene.render.resolution_x = size[0]
         self.scene.render.resolution_y = size[1]
-        bpy.ops.render.render(write_still=1, animation=self.animation)
 
+        # set background color
+        world = bpy.data.worlds.new("World")
+        world.use_nodes = True
+        world_nodes = world.node_tree.nodes
+        world_nodes['Background'].inputs[0].default_value = hex_to_rgba(
+            background_color)
+        self.scene.world = world
+
+        # render
+        bpy.ops.render.render(write_still=1, animation=self.animation)
         if ".mp4" in filename:
             cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                    f'"{export_folder}%4d.png" '
@@ -109,7 +130,15 @@ class Scene:
         self.scene.eevee.bloom_threshold = threshold
         self.scene.eevee.use_bloom = True
 
-    def add_glare(self, size=8, mix=0, fade=0, dispersion=0.01, saturation=1.1, gain=1.1):
+    def add_glare(
+            self,
+            size=8,
+            mix=0,
+            fade=0,
+            dispersion=0.01,
+            saturation=1.1,
+            contrast=1,
+            gain=1.1):
         self.scene.render.use_compositing = True
         self.scene.use_nodes = True
         tree = self.scene.node_tree
@@ -123,6 +152,7 @@ class Scene:
             type="CompositorNodeColorCorrection")
         color_correction_node.master_saturation = saturation
         color_correction_node.master_gain = gain
+        color_correction_node.master_contrast = contrast
 
         lens_distortion_node = self.scene.node_tree.nodes.new(
             type="CompositorNodeLensdist")

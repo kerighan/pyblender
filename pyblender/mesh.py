@@ -1,8 +1,11 @@
+from math import radians
+
 import bmesh
 import bpy
+from mathutils import Euler
 
 from .geometry import Geometry
-from .utils import look_at, random_string
+from .utils import look_at, random_string, to_radians
 
 
 class Mesh:
@@ -21,6 +24,13 @@ class Mesh:
             self.obj.hide_viewport = True
             self.obj.hide_render = True
 
+    def convert_to_mesh(self):
+        s = bpy.context.scene
+        for o in s.objects:
+            o.select_set(o == self.obj)
+        bpy.context.view_layer.objects.active = self.obj
+        bpy.ops.object.convert(target="MESH")
+
     def shade_smooth(self):
         for f in self.obj.data.polygons:
             f.use_smooth = True
@@ -28,6 +38,10 @@ class Mesh:
     def init(self, material, visible):
         self.add_material(material)
         self.set_visible(visible)
+
+    def modify_explode(self, edge_cut=False):
+        m = self.obj.modifiers.new('explode', 'EXPLODE')
+        m.use_edge_cut = edge_cut
 
     def modify_geometry(self):
         return Geometry(self.obj)
@@ -60,23 +74,39 @@ class Mesh:
     def modify_smooth(self):
         m = self.obj.modifiers.new('smooth', 'SMOOTH')
 
+    def modify_remesh(
+        self, mode="VOXEL", remove_disconnected=True, octree_depth=4,
+        smooth_shade=False
+    ):
+        m = self.obj.modifiers.new('remesh', 'REMESH')
+        m.mode = mode
+        m.use_remove_disconnected = remove_disconnected
+        m.use_smooth_shade = smooth_shade
+        m.octree_depth = octree_depth
+
+    def rotate(self, x, y, z):
+        R = Euler((radians(x), radians(y), radians(z))).to_matrix().to_4x4()
+        self.obj.matrix_world = R @ self.obj.matrix_world
+
+    def translate(self, x, y, z):
+        a, b, c = self.obj.location
+        self.obj.location = (x + a, y + b, z + c)
+
     def animate_rotation(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:
             frames = range(len(values))
         for frame, rotation in zip(frames, values):
-            self.obj.rotation_euler = rotation
+            self.obj.rotation_euler = to_radians(rotation)
             kf = self.obj.keyframe_insert(
                 "rotation_euler", index=2, frame=frame)
-            # kf.interpolation = interpolation
 
     def animate_rotation_z(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:
             frames = range(len(values))
         for frame, rotation in zip(frames, values):
-            self.obj.rotation_euler = (0, 0, rotation)
+            self.obj.rotation_euler = (0, 0, radians(rotation))
             kf = self.obj.keyframe_insert(
                 "rotation_euler", index=2, frame=frame)
-            # kf.interpolation = interpolation
 
     def animate_location(self, values, frames=None):
         if frames is None:
@@ -167,6 +197,7 @@ class Cube(Mesh):
         material=None,
         visible=True
     ):
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_cube_add(
             size=size, location=location, rotation=rotation)
         self.obj = bpy.context.scene.objects[-1]
@@ -183,6 +214,7 @@ class Sphere(Mesh):
         material=None,
         visible=True
     ):
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_uv_sphere_add(
             radius=radius, location=location, rotation=rotation,
             segments=div, ring_count=div)
@@ -195,14 +227,16 @@ class IcoSphere(Mesh):
         self,
         location=(0, 0, 0),
         rotation=(0, 0, 0),
+        scale=(1, 1, 1),
         radius=1,
         div=8,
         material=None,
         visible=True
     ):
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_ico_sphere_add(
             radius=radius, location=location, rotation=rotation,
-            subdivisions=div)
+            subdivisions=div, scale=scale)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 
@@ -212,14 +246,39 @@ class UVSphere(Mesh):
         self,
         location=(0, 0, 0),
         rotation=(0, 0, 0),
+        scale=(1, 1, 1),
         radius=1,
         div=32,
         material=None,
         visible=True
     ):
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_uv_sphere_add(
             radius=radius, location=location, rotation=rotation,
-            segments=div, ring_count=div//2)
+            segments=div, ring_count=div//2, scale=scale)
+        self.obj = bpy.context.scene.objects[-1]
+        self.init(material, visible)
+
+
+class Circle(Mesh):
+    def __init__(
+        self,
+        location=(0, 0, 0),
+        rotation=(0, 0, 0),
+        radius=1,
+        div=32,
+        material=None,
+        fill=False,
+        visible=True
+    ):
+        if fill:
+            fill = "TRIFAN"
+        else:
+            fill = "NOTHING"
+        rotation = to_radians(rotation)
+        bpy.ops.mesh.primitive_circle_add(
+            radius=radius, location=location, rotation=rotation,
+            vertices=div, fill_type=fill)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 
@@ -235,6 +294,7 @@ class Box(Mesh):
         uv_unwrap=False,
         visible=True
     ):
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_cube_add(
             size=size, location=location,
             scale=scale, rotation=rotation)
@@ -275,7 +335,7 @@ class Plane(Mesh):
         material=None,
         visible=True
     ):
-
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_plane_add(
             location=location, rotation=rotation,
             size=size, scale=scale)
@@ -295,9 +355,10 @@ class Grid(Mesh):
         material=None,
         visible=True
     ):
-
+        rotation = to_radians(rotation)
         bpy.ops.mesh.primitive_grid_add(
-            x_subdivisions=width, y_subdivisions=height, rotation=rotation, size=size, scale=scale, location=location)
+            x_subdivisions=width, y_subdivisions=height,
+            rotation=rotation, size=size, scale=scale, location=location)
         self.obj = bpy.context.scene.objects[-1]
         self.init(material, visible)
 
@@ -333,7 +394,7 @@ class Cylinder(Mesh):
         self,
         location=(0, 0, 0),
         rotation=(0, 0, 0),
-        scale=(0, 0, 0),
+        scale=(1, 1, 1),
         radius=1,
         depth=1,
         div=32,
@@ -341,7 +402,7 @@ class Cylinder(Mesh):
         end_fill_type=None,
         visible=True
     ):
-
+        rotation = to_radians(rotation)
         if end_fill_type is not None:
             bpy.ops.mesh.primitive_cylinder_add(
                 depth=depth, radius=radius, end_fill_type=end_fill_type,
@@ -359,29 +420,42 @@ class Cylinder(Mesh):
 class Particles(Mesh):
     def __init__(
             self,
-            src, tgt,
-            count=500, size=0.2, gravity=1, lifetime=100,
-            size_random=0, factor_random=0, angular_velocity_factor=0,
-            rotation_factor_random=0, phase_factor_random=0,
-            frames=(1, 200), use_dynamic_rotation=True, use_rotations=True,
-            lifetime_random=0, time_tweak=1,
+            src, tgt=None,
+            count=500,
+            size=0.2,
+            gravity=1,
+            lifetime=100,
+            velocity=1,
+            size_random=0,
+            factor_random=0,
+            angular_velocity_factor=0,
+            rotation_factor_random=0,
+            phase_factor_random=0,
+            frames=(1, 200),
+            use_dynamic_rotation=True,
+            use_rotations=True,
+            use_modifier_stack=False,
+            lifetime_random=0,
+            time_tweak=1,
             hide_emitter=True):
         src_obj = src.obj
         src_obj.modifiers.new("particles", type='PARTICLE_SYSTEM')
-
         part = src_obj.particle_systems[0]
         settings = part.settings
         settings.count = count
         settings.emit_from = 'FACE'
         settings.physics_type = 'NEWTON'
         settings.particle_size = size
-        settings.render_type = 'OBJECT'
-        settings.instance_object = tgt.obj
+        if tgt is not None:
+            settings.render_type = 'OBJECT'
+            settings.instance_object = tgt.obj
         settings.lifetime = lifetime
         settings.frame_start = frames[0]
         settings.frame_end = frames[1]
         # settings.show_unborn = True
         # settings.use_dead = True
+        settings.normal_factor = velocity
+        settings.use_modifier_stack = use_modifier_stack
         settings.angular_velocity_factor = angular_velocity_factor
         settings.phase_factor_random = phase_factor_random
         settings.use_dynamic_rotation = use_dynamic_rotation
@@ -402,3 +476,38 @@ class Particles(Mesh):
 
         if hide_emitter:
             src_obj.show_instancer_for_render = False
+
+
+class Text(Mesh):
+    def __init__(
+        self,
+        text,
+        location=(0, 0, 0),
+        rotation=(0, 0, 0),
+        align="CENTER",
+        size=1,
+        extrude=.1,
+        material=None,
+        font=None,
+        visible=True
+    ):
+        rotation = to_radians(rotation)
+
+        font_curve = bpy.data.curves.new(type="FONT", name="Font Curve")
+        font_curve.body = text
+        if font is not None:
+            font = bpy.data.fonts.load(font)
+            font_curve.font = font
+        font_curve.size = size
+        font_curve.extrude = extrude
+        font_curve.align_x = align
+        font_curve.align_y = align
+        self.obj = bpy.data.objects.new(name="Font Object",
+                                        object_data=font_curve)
+        self.obj.rotation_mode = "XYZ"
+        bpy.context.scene.collection.objects.link(self.obj)
+
+        self.obj.location = location
+        self.obj.rotation_euler = rotation
+
+        self.init(material, visible)

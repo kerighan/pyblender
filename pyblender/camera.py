@@ -1,6 +1,9 @@
-import bpy
+from math import radians
 
-from .utils import look_at
+import bpy
+from mathutils import Euler
+
+from .utils import look_at, to_radians
 
 
 class Camera:
@@ -12,6 +15,8 @@ class Camera:
                  aperture_ratio=1,
                  aperture_fstop=2.8,
                  lens=50):
+        rotation = to_radians(rotation)
+
         cam_data = bpy.data.cameras.new('camera')
         # cam_data.dof.focus_distance = focus_distance
         if focus_point is not None:
@@ -68,3 +73,11 @@ class Camera:
         for kp in fc.keyframe_points:
             kp.handle_left_type = 'VECTOR'
             kp.handle_right_type = 'VECTOR'
+
+    def rotate(self, x, y, z):
+        R = Euler((radians(x), radians(y), radians(z))).to_matrix().to_4x4()
+        self.obj.matrix_world = R @ self.obj.matrix_world
+
+    def translate(self, x, y, z):
+        a, b, c = self.obj.location
+        self.obj.location = (x + a, y + b, z + c)

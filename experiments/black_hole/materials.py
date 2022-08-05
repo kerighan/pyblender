@@ -1,14 +1,15 @@
 from pyblender.material import Material, RefractionBSDF
 
+
 def create_sky_mat():
     sky_mat = Material(cast_shadows=False)
     noise = sky_mat.create_noise_texture(scale=1000, detail=6)
     color_ramp = sky_mat.create_color_ramp(positions=[.69, .70])
-    color_ramp2 = sky_mat.create_color_ramp(positions=[.5, .9])
+    color_ramp2 = sky_mat.create_color_ramp(positions=[.1, .9])
     clouds = sky_mat.create_noise_texture(scale=2, detail=12,
-                                          noise_dimensions="3D")
+                                          noise_dimensions="4D")
     mix_rgb = sky_mat.create_mix_rgb()
-    mult = sky_mat.create_operation(value=.25)
+    mult = sky_mat.create_operation(value=5)
 
     noise["Color"].to(color_ramp["Fac"])
     color_ramp["Color"].to(sky_mat.bsdf["Emission"])
@@ -21,13 +22,13 @@ def create_sky_mat():
     return sky_mat
 
 
-def create_black_hole_mat():    
+def create_black_hole_mat():
     mat = RefractionBSDF(color="#FFFFFF", roughness=0)
     layer_weight = mat.create_layer_weight(blend=.96)
     mix_shader = mat.create_mix_shader()
     cr = mat.create_color_ramp(positions=[0.5, .7])
     op = mat.create_operation("POWER", -1)
-    
+
     layer_weight["Facing"].to(op[0])
     op[0].to(mat.bsdf["IOR"])
     cr["Color"].to(mix_shader["Fac"])

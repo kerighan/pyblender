@@ -15,7 +15,7 @@ TEXTURE = "MUSGRVE"
 COLORS = ["#AFCBFF", "#FFEDE1"]
 
 # Sun(location=(10, 10, 0))
-PointLight((2, -1, 1.5), energy=800, color="#EDD8B2")
+PointLight((2, -1, 1.5), energy=600, color="#EDD8B2")
 PointLight((-1, 1, -1.5), energy=200, color="#EDD8B2")
 
 image = Image("img/mercury.jpg")
@@ -37,4 +37,4 @@ camera.look_at((0, 0, 0))
 scene = Scene(camera)
 scene.add_glare(saturation=1.2, gain=1.1, dispersion=.05, size=8)
 scene.render("render.png", eevee=False,
-             size=(800, 800), contrast="Very High Contrast", samples=4096)
+             size=(800, 800), contrast="Very High Contrast", samples=64)

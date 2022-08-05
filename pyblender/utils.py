@@ -1,5 +1,13 @@
+from math import radians
+
 import numpy as np
 from mathutils import Vector
+
+
+def to_radians(rotation):
+    return (radians(rotation[0]),
+            radians(rotation[1]),
+            radians(rotation[2]))
 
 
 def hex_to_rgb(value):
@@ -26,8 +34,8 @@ def look_at(obj, point):
 
 
 def random_string(length):
-    import string
     import random
+    import string
     return ''.join(
         random.choice(string.ascii_lowercase) for i in range(length))
 
