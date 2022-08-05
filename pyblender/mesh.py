@@ -43,12 +43,25 @@ class Mesh:
         m = self.obj.modifiers.new('explode', 'EXPLODE')
         m.use_edge_cut = edge_cut
 
+    def modify_array(
+            self, count=2, offset_obj=None, offset_displace=(1, 0, 0)):
+        m = self.obj.modifiers.new('array', 'ARRAY')
+        m.count = count
+        if offset_obj is not None:
+            m.offset_object = offset_obj.obj
+            m.use_object_offset = True
+        m.relative_offset_displace = offset_displace
+
     def modify_geometry(self):
         return Geometry(self.obj)
 
     def modify_wireframe(self, thickness=.02):
         m = self.obj.modifiers.new('wireframe', 'WIREFRAME')
         m.thickness = thickness
+        return m
+
+    def modify_ocean(self):
+        m = self.obj.modifiers.new('ocean', 'OCEAN')
         return m
 
     def modify_subdivide(self, levels=1, render_levels=2, quality=3):
@@ -98,7 +111,7 @@ class Mesh:
         for frame, rotation in zip(frames, values):
             self.obj.rotation_euler = to_radians(rotation)
             kf = self.obj.keyframe_insert(
-                "rotation_euler", index=2, frame=frame)
+                "rotation_euler", index=0, frame=frame)
 
     def animate_rotation_z(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:
@@ -182,9 +195,13 @@ class Mesh:
 
 
 class Empty(Mesh):
-    def __init__(self, location):
+    def __init__(self,
+                 location=(0, 0, 0), scale=(1, 1, 1), rotation=(0, 0, 0)
+                 ):
         obj = bpy.data.objects.new("empty", None)
         obj.location = location
+        obj.rotation_euler = to_radians(rotation)
+        obj.scale = scale
         self.obj = obj
 
 

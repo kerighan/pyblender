@@ -90,14 +90,15 @@ def create_sky_mat(star_intensity=200):
 
 
 def create_black_hole_mat():
-    mat = RefractionBSDF(color="#FFFFFF", roughness=0)
-    layer_weight = mat.create_layer_weight(blend=.9)
+    mat = RefractionBSDF(color="#FFFFFF", roughness=0.6)
+    layer_weight = mat.create_layer_weight(blend=.65)
     mix_shader = mat.create_mix_shader()
-    cr = mat.create_color_ramp(positions=[.85, .95])
-    op = mat.create_operation("POWER", -1)
+    cr = mat.create_color_ramp(positions=[.86-.1, .99-.1])
+    op = mat.create_operation("POWER", -.05)
 
     layer_weight["Facing"].to(op[0])
     op[0].to(mat.bsdf["IOR"])
+    cr["Color"].to(mat.bsdf["Roughness"])
     cr["Color"].to(mix_shader["Fac"])
     mat.bsdf[0].to(mix_shader[2])
     layer_weight["Facing"].to(cr["Fac"])

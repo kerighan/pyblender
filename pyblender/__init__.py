@@ -46,10 +46,14 @@ class Scene:
         volumetric_samples=64,
         gravity=(0.0, 0.0, -9.81),
         crf=18,
-        contrast="Medium High Contrast"
+        contrast="Medium High Contrast",
+        animation=False
     ):
         self.scene.gravity = gravity
         self.scene.frame_set(frame)
+
+        if ".mp4" in filename or animation == True:
+            animation = True
 
         if eevee:
             self.scene.render.engine = "BLENDER_EEVEE"
@@ -110,7 +114,7 @@ class Scene:
         self.scene.world = world
 
         # render
-        bpy.ops.render.render(write_still=1, animation=self.animation)
+        bpy.ops.render.render(write_still=1, animation=animation)
         if ".mp4" in filename:
             cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                    f'"{export_folder}%4d.png" '
@@ -119,10 +123,9 @@ class Scene:
                    f'-profile main -pix_fmt yuv420p {filename}')
             subprocess.check_output(cmd, shell=True)
 
-    def set_animation_bounds(self, start=0, end=100):
+    def set_animation_bounds(self, start=1, end=100):
         self.scene.frame_start = start
         self.scene.frame_end = end
-        self.animation = True
 
     def add_bloom(self, intensity=.05, radius=2, threshold=.8):
         self.scene.eevee.bloom_intensity = intensity

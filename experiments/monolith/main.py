@@ -56,8 +56,8 @@ camera = Camera(location=(4, 0, .1), lens=30)
 camera.look_at((0, 0, .1))
 camera.animate_location([(6, 0, 0.2), (4, 0, .1)], [0, FRAME_RATE*5])
 scene = Scene(camera)
-scene.set_animation_bounds(0, FRAME_RATE*5)
+# scene.set_animation_bounds(1, FRAME_RATE*5)
 scene.add_glare()
-scene.render("render.mp4", eevee=False,
+scene.render("render.png", eevee=False,
              size=(1920, 1080),
-             samples=4096, frame_rate=FRAME_RATE)
+             samples=64, frame_rate=FRAME_RATE)
