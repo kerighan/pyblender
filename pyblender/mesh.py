@@ -24,16 +24,39 @@ class Mesh:
             self.obj.hide_viewport = True
             self.obj.hide_render = True
 
-    def convert_to_mesh(self):
-        s = bpy.context.scene
-        for o in s.objects:
-            o.select_set(o == self.obj)
+    def set_cycles_visibility(
+        self, camera=True, diffuse=True,
+        glossy=True, transmission=True, scatter=True, shadow=True
+    ):
+        self.obj.visible_camera = camera
+        self.obj.visible_diffuse = diffuse
+        self.obj.visible_glossy = glossy
+        self.obj.visible_transmission = transmission
+        self.obj.visible_volume_scatter = scatter
+        self.obj.visible_shadow = shadow
+
+    def select(self):        
+        # s = bpy.context.scene
+        # for o in s.objects:
+        #     o.select_set(o == self.obj)
+        bpy.ops.object.select_all(action='DESELECT')
+        self.obj.select_set(True)
         bpy.context.view_layer.objects.active = self.obj
+        # bpy.context.scene.objects.active = self.obj
+
+    def convert_to_mesh(self):
+        self.select()
         bpy.ops.object.convert(target="MESH")
 
     def shade_smooth(self):
         for f in self.obj.data.polygons:
             f.use_smooth = True
+    
+    def resize(self, x, y, z):
+        self.select()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        bpy.ops.transform.resize(value=(x, y, z))
+        # self.obj.data.update()
 
     def init(self, material, visible):
         self.add_material(material)

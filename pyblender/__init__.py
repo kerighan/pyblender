@@ -116,11 +116,18 @@ class Scene:
         # render
         bpy.ops.render.render(write_still=1, animation=animation)
         if ".mp4" in filename:
-            cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
-                   f'"{export_folder}%4d.png" '
-                   f'-c:v libx264 -vf "fps=fps={frame_rate}" '
-                   f'-force_key_frames expr:gte\(t,n_forced*1\) -crf {crf} '
-                   f'-profile main -pix_fmt yuv420p {filename}')
+            if os.name == 'nt':
+                cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
+                    f'"{export_folder}%4d.png" '
+                    f'-c:v libx264 -vf "fps=fps={frame_rate}" '
+                    f'-force_key_frames expr:gte(t,n_forced*1) -crf {crf} '
+                    f'-profile main -pix_fmt yuv420p {filename}')
+            else:
+                cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
+                    f'"{export_folder}%4d.png" '
+                    f'-c:v libx264 -vf "fps=fps={frame_rate}" '
+                    f'-force_key_frames expr:gte\(t,n_forced*1\) -crf {crf} '
+                    f'-profile main -pix_fmt yuv420p {filename}')
             subprocess.check_output(cmd, shell=True)
 
     def set_animation_bounds(self, start=1, end=100):

@@ -6,6 +6,35 @@ import addict
 import copy
 
 
+def linear(values, frames):
+    val = np.linspace(values[0], values[1], frames[1] - frames[0])
+    frames = list(range(frames[0], frames[1] + 1))
+    return val, frames
+
+
+def shake(frames, origin, freq, intensity):
+    n_frames = frames[1] - frames[0]
+    n_k = int(round(freq*n_frames))
+    # keyframes = np.random.randint(
+    #     frames[0], frames[1], size=n_k - 1)
+    keyframes = np.linspace(frames[0], frames[1], n_k-1).astype(int)
+    values = np.random.normal(size=(n_k, 3), scale=intensity)
+    origin = np.array(origin)
+    
+    keyframes = [0] + sorted(keyframes)
+    tl = Timeline(*keyframes)
+    tl.pos = [
+        ("cubic-in-out", values[i], values[i+1])
+        for i in range(len(values) - 1)
+    ]
+    
+    val = []
+    # print(tl[0])
+    for frame in range(frames[0], frames[1]):
+        val.append(tl[frame].pos + origin)
+    return val, range(frames[0], frames[1])
+
+
 class Timeline(object):
     """The timeline object is the central tool to automate parameters.
     It is passed keyframes (in milliseconds) as arguments.
