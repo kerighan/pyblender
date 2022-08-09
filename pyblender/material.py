@@ -58,6 +58,11 @@ class NodeMaterial:
             tex["Color"].to(node["Color"])
         return node
 
+    def create_value(self, value=.5):
+        node = self.mat.node_tree.nodes.new("ShaderNodeValue")
+        node.outputs["Value"].default_value = value
+        return Node(node, self)
+
     def create_hue_saturation(self, hue=.5, saturation=1., value=1., fac=1.):
         node = self.mat.node_tree.nodes.new("ShaderNodeHueSaturation")
         node = Node(node, self)
@@ -85,14 +90,15 @@ class NodeMaterial:
         if use_mapping:
             mapping = self.create_mapping()
             node["Generated"].to(mapping["Vector"])
-        return node, mapping
+            return node, mapping
+        return node
 
     def create_mix_shader(self, fac=.5):
         node = self.mat.node_tree.nodes.new("ShaderNodeMixShader")
         node.inputs["Fac"].default_value = fac
         return Node(node, self)
 
-    def create_mix_rgb(self, fac=.5, blend_type="MIX"):
+    def create_mix_rgb(self, blend_type="MIX", fac=.5):
         node = self.mat.node_tree.nodes.new("ShaderNodeMixRGB")
         node.inputs["Fac"].default_value = fac
         node.blend_type = blend_type
@@ -219,6 +225,11 @@ class NodeMaterial:
         node.inputs[1].default_value = value
         return Node(node, self)
 
+    def create_vector_math(self, operation="ADD"):
+        node = self.mat.node_tree.nodes.new("ShaderNodeVectorMath")
+        node.operation = operation
+        return Node(node, self)
+
     def create_map_range(self, source=[0, 1], target=[0, 1]):
         node = self.mat.node_tree.nodes.new("ShaderNodeMapRange")
         node.inputs[1].default_value = source[0]
@@ -277,13 +288,12 @@ class Node:
     def link_to(self, target, output="Color", input="Base Color"):
         self._mat.link(self, target, output, input)
 
-    def animate(self, key, values, frames=None, interpolation="LINEAR"):
+    def animate(self, key, values, frames=None):
         path = self._node.inputs[key]
         frames = range(len(values)) if frames is None else frames
         for frame, value in zip(frames, values):
             path.default_value = value
             path.keyframe_insert(data_path="default_value", frame=frame)
-            # kf.interpolation = interpolation
 
     def __setitem__(self, key, value):
         self._node.inputs[key].default_value = value
@@ -369,7 +379,9 @@ class VolumeMaterial(NodeMaterial):
         self,
         color="#FFFFFF",
         emission=0,
-        density=1
+        density=1,
+        cast_shadows=True,
+        shadow_mode=None
     ):
         super().__init__()
         self.reset()
@@ -388,6 +400,11 @@ class VolumeMaterial(NodeMaterial):
             color[0], color[1], color[2], 1)
         inputs['Density'].default_value = density
 
+        if shadow_mode is not None:
+            self.mat.shadow_method = shadow_mode
+        elif not cast_shadows:
+            self.mat.shadow_method = "NONE"
+
         if emission > 0:
             inputs['Emission Strength'].default_value = emission
 
@@ -396,7 +413,9 @@ class EmissionMaterial(NodeMaterial):
     def __init__(
         self,
         color="#FFFFFF",
-        emission_strength=1
+        emission_strength=1,
+        cast_shadows=True,
+        shadow_mode=None
     ):
         super().__init__()
         self.reset()
@@ -415,6 +434,11 @@ class EmissionMaterial(NodeMaterial):
             color[0], color[1], color[2], 1)
         inputs['Strength'].default_value = emission_strength
 
+        if shadow_mode is not None:
+            self.mat.shadow_method = shadow_mode
+        elif not cast_shadows:
+            self.mat.shadow_method = "NONE"
+
 
 class RefractionBSDF(NodeMaterial):
     def __init__(
@@ -422,7 +446,9 @@ class RefractionBSDF(NodeMaterial):
         color="#FFFFFF",
         ior=1.45,
         roughness=0.5,
-        use_screen_refraction=True
+        use_screen_refraction=True,
+        cast_shadows=True,
+        shadow_mode=None
     ):
         super().__init__()
         self.reset()
@@ -442,3 +468,8 @@ class RefractionBSDF(NodeMaterial):
         self.links.new(node.outputs[0], output_node.inputs[0])
         self.bsdf = Node(self.nodes.get("Refraction BSDF"), self)
         self.material_output = Node(self.nodes.get("Material Output"), self)
+
+        if shadow_mode is not None:
+            self.mat.shadow_method = shadow_mode
+        elif not cast_shadows:
+            self.mat.shadow_method = "NONE"

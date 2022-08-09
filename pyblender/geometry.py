@@ -21,6 +21,13 @@ class GeoNode:
         target._current = None
         self._current = None
 
+    def animate(self, key, values, frames=None):
+        path = self._node.inputs[key]
+        frames = range(len(values)) if frames is None else frames
+        for frame, value in zip(frames, values):
+            path.default_value = value
+            path.keyframe_insert(data_path="default_value", frame=frame)
+
 
 class Geometry:
     def __init__(self, obj=None):
@@ -89,4 +96,14 @@ class Geometry:
     def create_random_value(self, data_type="FLOAT"):
         node = self.nodes.new('FunctionNodeRandomValue')
         node.data_type = data_type
+        return GeoNode(node, self)
+
+    def create_vector_math(self, operation="SCALE"):
+        node = self.nodes.new('ShaderNodeVectorMath')
+        node.operation = operation
+        return GeoNode(node, self)
+
+    def create_value(self, value=.5):
+        node = self.nodes.new("ShaderNodeValue")
+        node.outputs["Value"].default_value = value
         return GeoNode(node, self)

@@ -55,7 +55,7 @@ Turbulence(strength=25, size=1, flow=3)
 camera = Camera((10, 0, 0), lens=50, use_dof=True, focus_point=(0, 0, 0),
                 aperture_ratio=1, aperture_fstop=.15)
 camera.look_at((0, 0, 0))
-camera.animate_location([(16, 0, 0), (10, 0, 0), (0, 0, 0)], [
+camera.animate_location([(19, 0, 0), (10, 0, 0), (0, 0, 0)], [
                         1, FRAME_RATE*3, FRAME_RATE*4])
 
 scene = Scene(camera)
@@ -63,4 +63,4 @@ scene.add_glare()
 scene.set_animation_bounds(1, FRAME_RATE*4)
 # scene.render("render.png", (800, 800), frame_rate=FRAME_RATE, eevee=False)
 scene.render("render.mp4", (1920, 1080),
-             frame_rate=FRAME_RATE, eevee=False, samples=16)
+             frame_rate=FRAME_RATE, eevee=False, samples=512)

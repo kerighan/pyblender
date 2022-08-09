@@ -35,7 +35,7 @@ class Mesh:
         self.obj.visible_volume_scatter = scatter
         self.obj.visible_shadow = shadow
 
-    def select(self):        
+    def select(self):
         # s = bpy.context.scene
         # for o in s.objects:
         #     o.select_set(o == self.obj)
@@ -47,11 +47,12 @@ class Mesh:
     def convert_to_mesh(self):
         self.select()
         bpy.ops.object.convert(target="MESH")
+        return self
 
     def shade_smooth(self):
         for f in self.obj.data.polygons:
             f.use_smooth = True
-    
+
     def resize(self, x, y, z):
         self.select()
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -123,10 +124,12 @@ class Mesh:
     def rotate(self, x, y, z):
         R = Euler((radians(x), radians(y), radians(z))).to_matrix().to_4x4()
         self.obj.matrix_world = R @ self.obj.matrix_world
+        return self
 
     def translate(self, x, y, z):
         a, b, c = self.obj.location
         self.obj.location = (x + a, y + b, z + c)
+        return self
 
     def animate_rotation(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:

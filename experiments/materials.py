@@ -1,58 +1,68 @@
+from pyblender.animation import linear
 from pyblender.material import (EmissionMaterial, Material, RefractionBSDF,
                                 VolumeMaterial)
-from pyblender.animation import linear
 
-def create_dust_disk():
-    mat = EmissionMaterial(
-        color="#D640EF", emission_strength=2)
+
+def create_sun_mat():
+    mat = EmissionMaterial(color="#F916D7")
     bsdf = mat.bsdf
-    transparent = mat.create_transparent_bsdf()
-    mix_shader = mat.create_mix_shader()
-    mix_rgb = mat.create_mix_rgb(fac=1, blend_type="MULTIPLY")
-    cr = mat.create_color_ramp(positions=[.3, .8])
+    texcoord = mat.create_texture_coordinate(False)
+    mapping = mat.create_mapping()
+    normalize = mat.create_vector_math("NORMALIZE")
+    musgrave = mat.create_musgrave_texture(
+        musgrave_type="MULTIFRACTAL", scale=1, detail=7,
+        dimension=0., lacunarity=2.1)
+    add = mat.create_mix_rgb("ADD", fac=1)
+    subtract = mat.create_mix_rgb("SUBTRACT", fac=1)
+    multiply = mat.create_mix_rgb("MULTIPLY", fac=1)
+    fade = mat.create_operation("MULTIPLY", value=.4)
+    power = mat.create_operation("POWER", value=3.3)
+    noise = mat.create_noise_texture(
+        scale=2, detail=9.8, roughness=.492, noise_dimensions="4D")
+    value = mat.create_value(value=2)
 
-    # gradient falloff
-    falloff_gradient = mat.create_gradient_texture("SPHERICAL")
-    texcoord, mapping = mat.create_texture_coordinate()
-    texcoord["Object"].to(mapping["Vector"])
-    mapping["Vector"].to(falloff_gradient["Vector"])
-
-    # texture
-    noise = mat.create_musgrave_texture(scale=15)
-    noise["Fac"].to(mix_rgb[1])
-    falloff_gradient["Color"].to(mix_rgb[2])
-    
-    mix_rgb["Color"].to(cr["Fac"])
-    cr["Color"].to(bsdf["Strength"])
-    mix_rgb["Color"].to(mix_shader["Fac"])
-    
-    bsdf[0].to(mix_shader[1])
-    transparent[0].to(mix_shader[2])
-    mix_shader[0].to(mat.material_output["Surface"])
+    mapping["Scale"] = (1, 1, 2)
+    texcoord["Object"].to(normalize["Vector"])
+    normalize[0].to(mapping["Vector"])
+    mapping["Vector"].to(noise["Vector"])
+    noise["Color"].to(subtract[1])
+    subtract[0].to(multiply[1])
+    value[0].to(multiply[2])
+    multiply[0].to(add[2])
+    texcoord["Object"].to(add[1])
+    add["Color"].to(musgrave["Vector"])
+    musgrave[0].to(fade[0])
+    fade[0].to(power[0])
+    power[0].to(bsdf["Strength"])
     return mat
 
-    
+
+def create_text_mat():
+    mat = Material(color="#000000")
+    return mat
+
+
 def create_accretion_disk():
     mat = VolumeMaterial(density=2)
     bsdf = mat.bsdf
     mix_rgb = mat.create_mix_rgb(blend_type="MULTIPLY", fac=1)
     colorization = mat.create_color_ramp(
-        positions=[0, .3, .41, .45, .5, .6],
-        colors=["#000000", "#001635", "#3BB8BD",
-                "#D640EF",  "#96F7FE", "#FFFFFF"],
+        positions=[0, .3, .36, .45, .5, .6],
+        colors=["#000000", "#001635", "#1731A9",
+                "#268AFC",  "#7EBDEE", "#FFFFFF"],
         interpolation="EASE")
     # hues= .5, .93, .17, .33
-    saturation = mat.create_hue_saturation(saturation=1.3, hue=.5)
+    saturation = mat.create_hue_saturation(saturation=1.2, hue=.5)
     density = mat.create_operation(value=50)
-    density_cr = mat.create_color_ramp(positions=[.3, 1])
-    emission = mat.create_operation("MULTIPLY", value=90)
+    density_cr = mat.create_color_ramp(positions=[.4, 1])
+    emission = mat.create_operation("MULTIPLY", value=100)
     emission_cr = mat.create_color_ramp(
         colors=["#000000", "#DDDDDD", "#FFFFFF"],
-        positions=[0, .9, 1], interpolation="B_SPLINE")
-    
+        positions=[0, .95, 1], interpolation="EASE")
+
     # gradient falloff
     falloff_gradient = mat.create_gradient_texture("SPHERICAL")
-    accretion_cr = mat.create_color_ramp(positions=[.4, .7],
+    accretion_cr = mat.create_color_ramp(positions=[.5, .75],
                                          interpolation="B_SPLINE")
     texcoord, mapping = mat.create_texture_coordinate()
     texcoord["Object"].to(mapping["Vector"])
@@ -66,18 +76,17 @@ def create_accretion_disk():
     # emission
     emission_cr[0].to(emission[0])
     emission[0].to(bsdf["Emission Strength"])
-    # falloff_gradient[0].to(bsdf["Emission Color"])
-    
+
     # accretion texture
     noise = mat.create_noise_texture(scale=5, detail=32,
                                      noise_dimensions="4D")
-    smaller_noise = mat.create_noise_texture(scale=23)
-    smallest_noise = mat.create_noise_texture(scale=64)
+    smaller_noise = mat.create_noise_texture(scale=32, detail=32)
+    smallest_noise = mat.create_noise_texture(scale=64, detail=32)
     mix_noise = mat.create_mix_rgb(blend_type="OVERLAY", fac=1)
     mix_noise2 = mat.create_mix_rgb(blend_type="OVERLAY", fac=1)
     gradient = mat.create_gradient_texture("SPHERICAL")
     texcoord, mapping = mat.create_texture_coordinate()
-    accretion_rgb = mat.create_mix_rgb(fac=.217)
+    accretion_rgb = mat.create_mix_rgb(fac=.2)
     texcoord["Object"].to(mapping["Vector"])
     mapping["Vector"].to(gradient["Vector"])
     mapping["Scale"] = (1, 1, .1)
@@ -90,44 +99,34 @@ def create_accretion_disk():
     smallest_noise["Fac"].to(mix_noise2[2])
     noise["Fac"].to(mix_noise[1])
     mix_noise2["Color"].to(mix_noise[2])
-    
+
     # mix rgb
     accretion_cr["Color"].to(mix_rgb[1])
     mix_noise["Color"].to(mix_rgb[2])
     mix_rgb[0].to(colorization["Fac"])
     colorization[0].to(saturation["Color"])
     saturation[0].to(bsdf["Emission Color"])
-    
-    noise.animate("W", *linear([0, .1], [1, 96]))
+
+    # noise.animate("W", *linear([0, .1], [1, 96]))
     return mat
 
 
 def create_black_hole():
     mat = RefractionBSDF(roughness=0)
     bsdf = mat.bsdf
-    mix_shader = mat.create_mix_shader()
-    mix_shader[0].to(mat.material_output["Surface"])
+    # mix_shader = mat.create_mix_shader()
+    # mix_shader[0].to(mat.material_output["Surface"])
 
     # surface blackness
-    layer_weight = mat.create_layer_weight(blend=.95)
+    layer_weight = mat.create_layer_weight(blend=.96)
     layer_weight_cr = mat.create_color_ramp(positions=[.6, 1])
     layer_weight_op = mat.create_operation("POWER", value=-1)
     layer_weight["Facing"].to(layer_weight_cr["Fac"])
     layer_weight_cr["Color"].to(layer_weight_op[0])
     layer_weight_op[0].to(bsdf["IOR"])
-    bsdf[0].to(mix_shader[1])
-    
-    # photon ring
-    photon_lw = mat.create_layer_weight(blend=.9)
-    photon_cr = mat.create_color_ramp(
-        colors=["#000000", "#000000", "#000000"], positions=[.27, .272, .274])
-    photon_emission = mat.create_emission(strength=5, color="#1F98FE")
-    photon_lw["Facing"].to(photon_cr["Fac"])
-    photon_cr["Color"].to(mix_shader["Fac"])
-    photon_emission[0].to(mix_shader[2])
-    
+
     return mat
-    
+
 
 def create_sky_mat(star_intensity=200):
     sky_mat = Material(cast_shadows=False, emission_strength=10)
@@ -193,9 +192,9 @@ def create_sky_mat(star_intensity=200):
     clouds_noise_cr[0].to(clouds_noise_intensity[0])
     clouds_noise_intensity[0].to(clouds_noise_intensity2[0])
 
-    mix_stars_cosmos = sky_mat.create_mix_rgb(fac=.99)
+    mix_stars_cosmos = sky_mat.create_mix_rgb(fac=.997)
     mix_stars_clouds = sky_mat.create_mix_rgb(fac=.1)
-    mix_color = sky_mat.create_mix_rgb(fac=.003)
+    mix_color = sky_mat.create_mix_rgb(fac=.002)
 
     mix_stars2["Color"].to(mix_stars_cosmos[2])
     cosmos_noise["Fac"].to(cosmos_cr["Fac"])

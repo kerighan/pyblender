@@ -8,29 +8,29 @@ from pyblender.utils import hex_to_rgba
 
 # Sun()
 PointLight((0, 0, 0))
-DURATION = 16
-FRAME_RATE = 60
+DURATION = 12
+FRAME_RATE = 10
 
 
 def create_mat(color, color_2):
     mat = Material(
         roughness=1,
-        emission_strength=20,
+        emission_strength=15,
         emission_color=color,
         color=color)
     mat.bsdf["Subsurface IOR"] = 1.01
 
     # first one
-    mapping = mat.create_mapping()
-    texcoord = mat.create_texture_coordinate()
+    # mapping = mat.create_mapping()
+    texcoord, mapping = mat.create_texture_coordinate()
     wave = mat.create_wave_texture(
-        wave_type="RINGS", wave_profile="TRI",
-        scale=.1, distortion=5.7, detail=9)
+        wave_type="RINGS", wave_profile="SIN",
+        scale=.1, distortion=7.7, detail=9)
     noise = mat.create_musgrave_texture(
-        scale=3.5, detail=12, dimension=25.7, offset=.05,
-        musgrave_type="HYBRID_MULTIFRACTAL")
+        scale=6.5, detail=12, dimension=25.7, offset=.05,
+        musgrave_type="RIDGED_MULTIFRACTAL")
     magic = mat.create_magic_texture(distortion=-6.1)
-    cr = mat.create_color_ramp(positions=[.7, 1])
+    cr = mat.create_color_ramp(positions=[.85, 1])
     mix_shader = mat.create_mix_shader()
 
     mapping["Scale"] = (-1.3, -.7, .8)
@@ -42,20 +42,20 @@ def create_mat(color, color_2):
     cr["Color"].to(mat.bsdf["Alpha"])
 
     # second one
-    mapping = mat.create_mapping()
-    texcoord = mat.create_texture_coordinate()
-    brick = mat.create_brick_texture(scale=1.8)
-    add = mat.create_operation(operation="ADD", value=.15)
+    # mapping = mat.create_mapping()
+    texcoord, mapping = mat.create_texture_coordinate()
+    brick = mat.create_brick_texture(scale=1.9)
+    add = mat.create_operation(operation="ADD", value=.12)
     magic = mat.create_magic_texture(
         distortion=-5.1)
-    cr2 = mat.create_color_ramp(positions=[.8, 1])
+    cr2 = mat.create_color_ramp(positions=[.85, 1])
     bsdf = mat.create_principled_bsdf()
     bsdf["Base Color"] = hex_to_rgba(color_2)
     bsdf["Roughness"] = 1
 
     mapping["Rotation"] = (radians(7), radians(-16), radians(10))
     mapping["Scale"] = (-50, 200, 40)
-    bsdf["Emission Strength"] = 25
+    bsdf["Emission Strength"] = 12
     bsdf["Emission"] = hex_to_rgba(color_2)
     # bsdf["Roughness"] = 0
     texcoord["Generated"].to(mapping["Vector"])
@@ -74,10 +74,10 @@ def create_mat(color, color_2):
 size = 400
 box_left = Box(location=(-size/2+1, -.4, 0),
                scale=(size, .01, 10),
-               material=create_mat("#0014FC", "#FF0101"))
+               material=create_mat("#009CF8", "#F916D7"))
 box_right = Box(location=(-size/2+1, .4, 0),
                 scale=(size, .01, 10),
-                material=create_mat("#FF0101", "#0014FC"))
+                material=create_mat("#F916D7", "#009CF8"))
 
 camera = Camera(location=(1, 0, 0), lens=14)
 camera.look_at((0, 0, 0))
@@ -85,11 +85,12 @@ camera.animate_location(
     [(1, 0, 0), (-size // 2, 0, 0)], [1, FRAME_RATE*DURATION])
 camera.animate_rotation(
     [(radians(90), radians(-20), radians(90)),
-     (radians(90), radians(110), radians(90))], [1, FRAME_RATE*DURATION])
+     (radians(90), radians(110), radians(90))],
+    [1, FRAME_RATE*DURATION])
 scene = Scene(camera)
-scene.add_bloom(radius=6, intensity=.01, threshold=.9)
-# scene.add_glare()
+# scene.add_bloom(radius=6, intensity=.01, threshold=.9)
+scene.add_glare(size=9)
 scene.set_animation_bounds(1, FRAME_RATE*DURATION)
 scene.render(
     "render.mp4", size=(1920, 1080), samples=64, eevee=True,
-    contrast="Very High Contrast", frame_rate=FRAME_RATE)
+    contrast="Very High Contrast", frame_rate=FRAME_RATE, use_motion_blur=False)
