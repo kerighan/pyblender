@@ -328,11 +328,13 @@ class Material(NodeMaterial):
         emission_strength=0,
         emission_color=None,
         transmission=0,
+        subsurface=0,
         texture=None,
         cast_shadows=True,
         blend_mode="OPAQUE",
         shadow_mode=None,
-        displace=False
+        displace=False,
+        bump=False,
     ):
         super().__init__()
 
@@ -346,11 +348,16 @@ class Material(NodeMaterial):
         inputs['Metallic'].default_value = metallic
         inputs['Specular'].default_value = specular
         inputs['Transmission'].default_value = transmission
+        inputs['Subsurface'].default_value = subsurface
 
         self.mat.blend_method = blend_mode
 
-        if displace:
+        if displace and not bump:
             self.mat.cycles.displacement_method = "DISPLACEMENT"
+        elif displace and bump:
+            self.mat.cycles.displacement_method = "BOTH"
+        elif bump and not displace:
+            self.mat.cycles.displacement_method = "BUMP"
 
         if shadow_mode is not None:
             self.mat.shadow_method = shadow_mode

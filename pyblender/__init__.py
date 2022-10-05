@@ -10,6 +10,12 @@ from .mesh import Box, Cube, Grid, Line, Plane, Sphere
 from .utils import hex_to_rgb, hex_to_rgba
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
+if bpy.context.scene.rigidbody_world is None:
+    bpy.ops.rigidbody.world_add()
+    bpy.context.scene.rigidbody_world.enabled = True
+
+rigid_collection = bpy.data.collections.new("rigid_collection")
+bpy.context.scene.rigidbody_world.collection = rigid_collection
 
 
 def reset():
@@ -18,16 +24,28 @@ def reset():
 
 
 class Scene:
-    def __init__(self, camera):
+    def __init__(
+        self,
+        size=(640, 480),
+        cycles=False,
+        samples=64
+    ):
         self.animation = False
-        self.camera = camera
         self.scene = bpy.context.scene
-        self.scene.camera = camera.obj
+        self.scene.render.resolution_x = size[0]
+        self.scene.render.resolution_y = size[1]
+
+        self.cycles = cycles
+        if cycles:
+            self.scene.render.engine = "CYCLES"
+            bpy.context.scene.cycles.samples = samples
+        else:
+            self.scene.render.engine = "BLENDER_EEVEE"
+            self.scene.eevee.taa_render_samples = samples
 
     def render(
         self,
         filename,
-        size=(640, 480),
         background_color="#000000",
         eevee=True,
         use_gpu=True,
@@ -47,7 +65,8 @@ class Scene:
         gravity=(0.0, 0.0, -9.81),
         crf=18,
         contrast="Medium High Contrast",
-        animation=False
+        animation=False,
+        bake=True
     ):
         self.scene.gravity = gravity
         self.scene.frame_set(frame)
@@ -55,8 +74,7 @@ class Scene:
         if ".mp4" in filename or animation == True:
             animation = True
 
-        if eevee:
-            self.scene.render.engine = "BLENDER_EEVEE"
+        if not self.cycles:
             self.scene.eevee.use_ssr = use_ssr
             self.scene.eevee.use_ssr_refraction = use_ssr_refraction
             self.scene.eevee.use_gtao = use_gtao
@@ -67,8 +85,8 @@ class Scene:
             if use_volumetric_shadows:
                 self.scene.eevee.use_volumetric_shadows = True
         else:
-            self.scene.render.engine = "CYCLES"
-            bpy.context.scene.cycles.samples = samples
+            if use_motion_blur:
+                bpy.context.scene.cycles.rolling_shutter_type = 'TOP'
 
         if use_gpu:
             prefs = bpy.context.preferences.addons['cycles'].preferences
@@ -102,8 +120,7 @@ class Scene:
         self.scene.view_settings.gamma = gamma
         self.scene.render.image_settings.file_format = 'PNG'
         self.scene.render.filepath = export_folder
-        self.scene.render.resolution_x = size[0]
-        self.scene.render.resolution_y = size[1]
+        self.scene.use_gravity = True
 
         # set background color
         world = bpy.data.worlds.new("World")
@@ -113,21 +130,23 @@ class Scene:
             background_color)
         self.scene.world = world
 
+        if bake:
+            bpy.ops.ptcache.bake_all(bake=True)
         # render
         bpy.ops.render.render(write_still=1, animation=animation)
         if ".mp4" in filename:
             if os.name == 'nt':
                 cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
-                    f'"{export_folder}%4d.png" '
-                    f'-c:v libx264 -vf "fps=fps={frame_rate}" '
-                    f'-force_key_frames expr:gte(t,n_forced*1) -crf {crf} '
-                    f'-profile main -pix_fmt yuv420p {filename}')
+                       f'"{export_folder}%4d.png" '
+                       f'-c:v libx264 -vf "fps=fps={frame_rate}" '
+                       f'-force_key_frames expr:gte(t,n_forced*1) -crf {crf} '
+                       f'-profile main -pix_fmt yuv420p {filename}')
             else:
                 cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
-                    f'"{export_folder}%4d.png" '
-                    f'-c:v libx264 -vf "fps=fps={frame_rate}" '
-                    f'-force_key_frames expr:gte\(t,n_forced*1\) -crf {crf} '
-                    f'-profile main -pix_fmt yuv420p {filename}')
+                       f'"{export_folder}%4d.png" '
+                       f'-c:v libx264 -vf "fps=fps={frame_rate}" '
+                       f'-force_key_frames expr:gte\(t,n_forced*1\) -crf {crf} '
+                       f'-profile main -pix_fmt yuv420p {filename}')
             subprocess.check_output(cmd, shell=True)
 
     def set_animation_bounds(self, start=1, end=100):

@@ -2,7 +2,7 @@ from math import radians
 
 import bmesh
 import bpy
-from mathutils import Euler
+from mathutils import Euler, Vector
 
 from .geometry import Geometry
 from .utils import look_at, random_string, to_radians
@@ -36,13 +36,13 @@ class Mesh:
         self.obj.visible_shadow = shadow
 
     def select(self):
-        # s = bpy.context.scene
-        # for o in s.objects:
-        #     o.select_set(o == self.obj)
+        bpy.context.view_layer.objects.active = self.obj
+        try:
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        except:
+            pass
         bpy.ops.object.select_all(action='DESELECT')
         self.obj.select_set(True)
-        bpy.context.view_layer.objects.active = self.obj
-        # bpy.context.scene.objects.active = self.obj
 
     def convert_to_mesh(self):
         self.select()
@@ -62,6 +62,33 @@ class Mesh:
     def init(self, material, visible):
         self.add_material(material)
         self.set_visible(visible)
+
+    def modify_rigid_body(
+        self, active="ACTIVE", mass=1, friction=0.5, restitution=0.5,
+        mesh_source="BASE", linear_damping=0.04
+    ):
+        bpy.context.scene.rigidbody_world.collection.objects.link(self.obj)
+        self.obj.rigid_body.type = active
+        self.obj.rigid_body.mass = mass
+        self.obj.rigid_body.friction = friction
+        self.obj.rigid_body.restitution = restitution
+        self.obj.rigid_body.kinematic = False
+        self.obj.rigid_body.mesh_source = mesh_source
+        self.obj.rigid_body.linear_damping = linear_damping
+
+    def modify_soft_body(self, mass=1, bend=5, push=.5, pull=.5):
+        m = self.obj.modifiers.new('softbody', 'SOFT_BODY')
+        m.settings.mass = mass
+        m.settings.push = push
+        m.settings.pull = pull
+        m.settings.bend = bend
+        m.settings.use_goal = False
+        return m
+
+    def modify_collision(self):
+        m = self.obj.modifiers.new('collision', 'COLLISION')
+        m.settings.use = True
+        return m
 
     def modify_explode(self, edge_cut=False):
         m = self.obj.modifiers.new('explode', 'EXPLODE')
@@ -88,11 +115,15 @@ class Mesh:
         m = self.obj.modifiers.new('ocean', 'OCEAN')
         return m
 
-    def modify_subdivide(self, levels=1, render_levels=2, quality=3):
+    def modify_subdivide(
+        self, levels=1, render_levels=2, quality=3,
+        subdivision_type="CATMULL_CLARK"
+    ):
         m = self.obj.modifiers.new('subdivide', 'SUBSURF')
         m.levels = levels
         m.render_levels = render_levels
         m.quality = quality
+        m.subdivision_type = subdivision_type
         return m
 
     def modify_displace(self, texture=None, strength=1):
@@ -130,6 +161,34 @@ class Mesh:
         a, b, c = self.obj.location
         self.obj.location = (x + a, y + b, z + c)
         return self
+
+    def throw(self, velocity, frame_start=0):
+        pref_edit = bpy.context.preferences.edit
+        keyInterp = pref_edit.keyframe_new_interpolation_type
+        pref_edit.keyframe_new_interpolation_type = 'LINEAR'
+
+        start_position = self.obj.location
+        velocity = Vector(velocity)
+
+        try:
+            self.obj.rigid_body.kinematic = True
+            self.obj.keyframe_insert(
+                'rigid_body.kinematic',
+                frame=frame_start)
+            self.obj.rigid_body.kinematic = False
+            self.obj.keyframe_insert(
+                'rigid_body.kinematic',
+                frame=frame_start+4)
+            self.obj.rigid_body.use_margin
+        except:
+            pass
+
+        self.obj.location = start_position
+        self.obj.keyframe_insert("location", frame=frame_start)
+        self.obj.location = start_position + velocity
+        self.obj.keyframe_insert("location", frame=frame_start+4)
+
+        pref_edit.keyframe_new_interpolation_type = keyInterp
 
     def animate_rotation(self, values, frames=None, interpolation="LINEAR"):
         if frames is None:
@@ -210,14 +269,20 @@ class Mesh:
         bpy.context.view_layer.objects.active = self.obj
 
         previous_mode = self.obj.mode
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        try:
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        except:
+            pass
         bm = bmesh.new()
         bm.from_mesh(self.obj.data)
         bmesh.ops.subdivide_edges(bm, edges=bm.edges, cuts=cuts,
                                   use_grid_fill=True)
         bm.to_mesh(self.obj.data)
         self.obj.data.update()
-        bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
+        try:
+            bpy.ops.object.mode_set(mode=previous_mode, toggle=False)
+        except:
+            pass
 
 
 class Empty(Mesh):
@@ -467,6 +532,7 @@ class Particles(Mesh):
             count=500,
             size=0.2,
             gravity=1,
+            emit_from="FACE",
             lifetime=100,
             velocity=1,
             size_random=0,
@@ -480,42 +546,77 @@ class Particles(Mesh):
             use_modifier_stack=False,
             lifetime_random=0,
             time_tweak=1,
+            hair=False,
+            hair_length=0.25,
+            hair_step=5,
+            root_radius=1.,
+            clump_factor=0,
+            clump_shape=0,
+            effect_hair=0.,
+            brownian_factor=0.,
+            length_random=0,
+            child_type="NONE",
+            material=1,
             hide_emitter=True):
         src_obj = src.obj
         src_obj.modifiers.new("particles", type='PARTICLE_SYSTEM')
         part = src_obj.particle_systems[0]
+        part.use_hair_dynamics = True
+
         settings = part.settings
         settings.count = count
-        settings.emit_from = 'FACE'
+        settings.material = material
+        settings.emit_from = emit_from
         settings.physics_type = 'NEWTON'
-        settings.particle_size = size
-        if tgt is not None:
-            settings.render_type = 'OBJECT'
-            settings.instance_object = tgt.obj
+        settings.child_type = child_type
         settings.lifetime = lifetime
         settings.frame_start = frames[0]
         settings.frame_end = frames[1]
-        # settings.show_unborn = True
-        # settings.use_dead = True
-        settings.normal_factor = velocity
-        settings.use_modifier_stack = use_modifier_stack
-        settings.angular_velocity_factor = angular_velocity_factor
-        settings.phase_factor_random = phase_factor_random
-        settings.use_dynamic_rotation = use_dynamic_rotation
-        settings.use_rotations = use_rotations
-        # settings.brownian_factor = 10
-        settings.factor_random = factor_random
-        settings.distribution = "JIT"
-        settings.lifetime_random = lifetime_random
-        settings.time_tweak = time_tweak
-        # settings.particle_factor = 1
-        settings.size_random = size_random
-        # settings.phase_factor = .2
-        # settings.radius_scale = .2
-        # settings.reactor_factor = .2
-        settings.rotation_factor_random = rotation_factor_random
-        # bpy.ops.object.duplicates_make_real()
-        settings.effector_weights.gravity = gravity
+
+        if hair:
+            settings.type = "HAIR"
+            settings.hair_step = hair_step
+            settings.clump_factor = clump_factor
+            settings.clump_shape = clump_shape
+            settings.hair_length = hair_length
+            settings.particle_size = size
+            settings.effect_hair = effect_hair
+            # settings.bending_random = 1
+            settings.effector_weights.gravity = gravity
+            settings.root_radius = root_radius
+            # settings.use_even_distribution = False
+            settings.length_random = length_random
+            settings.use_modifier_stack = True
+            settings.use_hair_bspline = True
+            settings.child_parting_max = 20
+            settings.use_advanced_hair = True
+            settings.mass = 24
+        else:
+            settings.particle_size = size
+            if tgt is not None:
+                settings.render_type = 'OBJECT'
+                settings.instance_object = tgt.obj
+            # settings.show_unborn = True
+            # settings.use_dead = True
+            settings.normal_factor = velocity
+            settings.use_modifier_stack = use_modifier_stack
+            settings.angular_velocity_factor = angular_velocity_factor
+            settings.phase_factor_random = phase_factor_random
+            settings.use_dynamic_rotation = use_dynamic_rotation
+            settings.use_rotations = use_rotations
+            settings.brownian_factor = brownian_factor
+            settings.factor_random = factor_random
+            settings.distribution = "JIT"
+            settings.lifetime_random = lifetime_random
+            settings.time_tweak = time_tweak
+            # settings.particle_factor = 1
+            settings.size_random = size_random
+            # settings.phase_factor = .2
+            # settings.radius_scale = .2
+            # settings.reactor_factor = .2
+            settings.rotation_factor_random = rotation_factor_random
+            # bpy.ops.object.duplicates_make_real()
+            settings.effector_weights.gravity = gravity
 
         if hide_emitter:
             src_obj.show_instancer_for_render = False

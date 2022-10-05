@@ -36,6 +36,8 @@ class Camera:
         cam.rotation_euler = rotation
         self.obj = cam
 
+        self.scene = bpy.context.scene.camera = cam
+
     def look_at(self, item):
         if isinstance(item, tuple):
             look_at(self.obj, item)
