@@ -1,3 +1,4 @@
+from distutils.errors import UnknownFileError
 from math import radians
 
 import bmesh
@@ -153,13 +154,23 @@ class Mesh:
         m.octree_depth = octree_depth
 
     def rotate(self, x, y, z):
-        R = Euler((radians(x), radians(y), radians(z))).to_matrix().to_4x4()
-        self.obj.matrix_world = R @ self.obj.matrix_world
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.rotate(x, y, z)
+        else:
+            R = Euler(
+                (radians(x), radians(y), radians(z))
+            ).to_matrix().to_4x4()
+            self.obj.matrix_world = R @ self.obj.matrix_world
         return self
 
     def translate(self, x, y, z):
-        a, b, c = self.obj.location
-        self.obj.location = (x + a, y + b, z + c)
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.translate(x, y, z)
+        else:
+            a, b, c = self.obj.location
+            self.obj.location = (x + a, y + b, z + c)
         return self
 
     def throw(self, velocity, frame_start=0):
@@ -655,3 +666,31 @@ class Text(Mesh):
         self.obj.rotation_euler = rotation
 
         self.init(material, visible)
+
+
+class Model(Mesh):
+    def __init__(
+        self,
+        src,
+        location=(0, 0, 0),
+        rotation=(0, 0, 0),
+        scale=(1, 1, 1),
+        material=None,
+        visible=True
+    ):
+        ext = src[-4:]
+        n_objects = len(bpy.context.scene.objects)
+        if ".glb" == ext:
+            bpy.ops.import_scene.gltf(filepath=src)
+        elif ".fbx" == ext:
+            bpy.ops.import_scene.fbx(filepath=src)
+        else:
+            raise UnknownFileError(f"{ext} not supported")
+        n_objects = len(bpy.context.scene.objects) - n_objects
+
+        self.parts = []
+        for obj in bpy.context.scene.objects[-n_objects:]:
+            mesh = Mesh()
+            mesh.obj = obj
+            self.parts.append(mesh)
+        # self.init(material, visible)

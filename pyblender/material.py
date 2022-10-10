@@ -1,5 +1,7 @@
 import bpy
 
+from pyblender.texture import Image
+
 from .utils import hex_to_rgb, hex_to_rgba, random_string
 
 
@@ -375,6 +377,8 @@ class Material(NodeMaterial):
             inputs['Emission Strength'].default_value = emission_strength
 
         if texture is not None:
+            if isinstance(texture, str):
+                texture = Image(texture)
             texImage = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
             texImage.image = texture.img
             self.mat.node_tree.links.new(

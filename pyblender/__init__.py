@@ -43,6 +43,11 @@ class Scene:
             self.scene.render.engine = "BLENDER_EEVEE"
             self.scene.eevee.taa_render_samples = samples
 
+    def create_compositor(self):
+        from .compositor import Compositor
+        comp = Compositor(self.scene)
+        return comp
+
     def render(
         self,
         filename,
