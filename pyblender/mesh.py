@@ -178,11 +178,8 @@ class Mesh:
         m.octree_depth = octree_depth
 
     def scale(self, scale=1):
-        # for part in self.parts:
-        #     part.obj.scale = (scale, 0, 0)
         self.select()
         bpy.ops.transform.resize(value=(scale, scale, scale))
-        # bpy.ops.transform.resize(value=(-2.2, 0, 0))
 
     def rotate(self, x, y, z):
         if hasattr(self, "parts"):
@@ -724,4 +721,3 @@ class Model(Mesh):
             mesh = Mesh()
             mesh.obj = obj
             self.parts.append(mesh)
-        # self.init(material, visible)

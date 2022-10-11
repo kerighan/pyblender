@@ -135,13 +135,16 @@ class NodeMaterial:
         rotation=(0, 0, 0),
         scale=(1, 1, 1),
         frame_offset=0,
-        projection="FLAT"
+        projection="FLAT",
+        extension="REPEAT",
+        color_space="sRGB"
     ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexImage")
         if isinstance(image, str):
-            image = Image(image)
+            image = Image(image, color_space=color_space)
         node.image = image.img
         node.projection = projection
+        node.extension = extension
         node.texture_mapping.rotation = rotation
         node.texture_mapping.scale = scale
         node.image_user.frame_offset = frame_offset

@@ -6,9 +6,10 @@ execution_dir = os.getcwd()
 
 
 class Image:
-    def __init__(self, src):
+    def __init__(self, src, color_space="NONE"):
         self.img = bpy.data.images.load(os.path.join(
             execution_dir, src), check_existing=False)
+        self.img.colorspace_settings.name = color_space
 
 
 class Texture:
