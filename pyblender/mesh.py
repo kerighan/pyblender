@@ -10,6 +10,19 @@ from .utils import look_at, random_string, to_radians
 
 
 class Mesh:
+    def repeat_animation(self, extend):
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.repeat_animation(extend)
+            return
+        if (
+            self.obj.animation_data is not None and
+            self.obj.animation_data.action is not None
+        ):
+            for fcurves_f in self.obj.animation_data.action.fcurves:
+                new_modifier = fcurves_f.modifiers.new(type='CYCLES')
+                new_modifier.cycles_after = extend
+
     def add_material(self, material):
         if material is not None:
             self.obj.data.materials.append(material.mat)
@@ -36,14 +49,21 @@ class Mesh:
         self.obj.visible_volume_scatter = scatter
         self.obj.visible_shadow = shadow
 
-    def select(self):
-        bpy.context.view_layer.objects.active = self.obj
+    def deselect_all(self):
         try:
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         except:
             pass
         bpy.ops.object.select_all(action='DESELECT')
-        self.obj.select_set(True)
+
+    def select(self):
+        if hasattr(self, "parts"):
+            self.deselect_all()
+            for part in self.parts:
+                part.obj.select_set(True)
+        else:
+            self.deselect_all()
+            self.obj.select_set(True)
 
     def convert_to_mesh(self):
         self.select()
@@ -51,8 +71,12 @@ class Mesh:
         return self
 
     def shade_smooth(self):
-        for f in self.obj.data.polygons:
-            f.use_smooth = True
+        if not hasattr(self, "parts"):
+            for f in self.obj.data.polygons:
+                f.use_smooth = True
+        else:
+            for part in self.parts:
+                part.shade_smooth()
 
     def resize(self, x, y, z):
         self.select()
@@ -152,6 +176,13 @@ class Mesh:
         m.use_remove_disconnected = remove_disconnected
         m.use_smooth_shade = smooth_shade
         m.octree_depth = octree_depth
+
+    def scale(self, scale=1):
+        # for part in self.parts:
+        #     part.obj.scale = (scale, 0, 0)
+        self.select()
+        bpy.ops.transform.resize(value=(scale, scale, scale))
+        # bpy.ops.transform.resize(value=(-2.2, 0, 0))
 
     def rotate(self, x, y, z):
         if hasattr(self, "parts"):

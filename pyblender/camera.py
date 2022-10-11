@@ -2,11 +2,12 @@ from math import radians
 
 import bpy
 from mathutils import Euler
+from pyblender.mesh import Mesh
 
 from .utils import look_at, to_radians
 
 
-class Camera:
+class Camera(Mesh):
     def __init__(self,
                  location=(0, 0, 0),
                  rotation=(0, 0, 0),
@@ -35,6 +36,9 @@ class Camera:
         cam.location = location
         cam.rotation_euler = rotation
         self.obj = cam
+        # print(dir(cam))
+        bpy.context.scene.collection.objects.link(cam)
+        # self.obj.layers[0] = True
 
         self.scene = bpy.context.scene.camera = cam
 
@@ -59,11 +63,19 @@ class Camera:
         for kp in fc.keyframe_points:
             kp.handle_left_type = 'VECTOR'
             kp.handle_right_type = 'VECTOR'
+    
+    def animate_lens(self, values, frames=None):
+        if frames is None:
+            frames = range(len(values))
+
+        for frame, lens in zip(frames, values):
+            self.obj.data.lens = lens
+            self.obj.data.keyframe_insert("lens", frame=frame)
+
 
     def animate_rotation(self, values, frames=None):
         if frames is None:
             frames = range(len(values))
-        print(self.obj.rotation_euler)
         for frame, rotation in zip(frames, values):
             self.obj.rotation_euler = rotation
             self.obj.keyframe_insert("rotation_euler", frame=frame)
@@ -76,9 +88,20 @@ class Camera:
             kp.handle_left_type = 'VECTOR'
             kp.handle_right_type = 'VECTOR'
 
-    def rotate(self, x, y, z):
-        R = Euler((radians(x), radians(y), radians(z))).to_matrix().to_4x4()
-        self.obj.matrix_world = R @ self.obj.matrix_world
+    # def rotate(self, x, y, z):
+    #     # R = Euler(
+    #     #     (radians(x), radians(y), radians(z))
+    #     # ).to_matrix().to_4x4()
+    #     # self.obj.matrix_world = R @ self.obj.matrix_world
+    #     # self.select()
+    #     self.deselect_all()
+    #     self.obj.select_set(True)
+    #     bpy.ops.transform.rotate(value=-1,
+    #                              constraint_axis=(False, False, True),
+    #                              constraint_orientation='LOCAL', 
+    #                              mirror=False, proportional='DISABLED',
+    #                              proportional_edit_falloff='SMOOTH', 
+    #                              proportional_size=1)
 
     def translate(self, x, y, z):
         a, b, c = self.obj.location

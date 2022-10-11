@@ -1,3 +1,4 @@
+from .texture import Image, Texture
 import bpy
 
 from pyblender.utils import random_string
@@ -40,11 +41,26 @@ class Compositor:
         self.output = CompositorNode(self.nodes["Composite"], self)
 
     def create_lens_distortion(self, distortion=1, dispersion=1):
-        node = CompositorNode(
-            self.nodes.new(type="CompositorNodeLensdist"), self)
+        node = self.nodes.new(type="CompositorNodeLensdist")
+        node.use_fit = True
+        node = CompositorNode(node, self)
         node["Distort"] = distortion
         node["Dispersion"] = dispersion
         return node
+    
+    def create_image(self, texture):
+        if isinstance(texture, str):
+            texture = Image(texture)
+        node = self.nodes.new(type="CompositorNodeImage")
+        node.image = texture.img
+        return CompositorNode(node, self)
+
+    def create_texture(self, texture):
+        if isinstance(texture, str):
+            texture = Texture(texture)
+        node = self.nodes.new(type="CompositorNodeTexture")
+        node.texture = texture.texture
+        return CompositorNode(node, self)
 
     def create_color_correction(self, saturation=1., gain=1., contrast=1.):
         node = self.nodes.new(type="CompositorNodeColorCorrection")

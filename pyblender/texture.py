@@ -13,7 +13,8 @@ class Image:
 
 class Texture:
     def __init__(self, src, name="Texture"):
-        img = bpy.data.images.load(src, check_existing=False)
+        img = bpy.data.images.load(os.path.join(
+            execution_dir, src), check_existing=False)
         t = bpy.data.textures.new(name, "IMAGE")
         t.image = img
         self.texture = t

@@ -1,6 +1,6 @@
 import bpy
 
-from pyblender.texture import Image
+from pyblender.texture import Image, Texture
 
 from .utils import hex_to_rgb, hex_to_rgba, random_string
 
@@ -138,6 +138,8 @@ class NodeMaterial:
         projection="FLAT"
     ):
         node = self.mat.node_tree.nodes.new("ShaderNodeTexImage")
+        if isinstance(image, str):
+            image = Image(image)
         node.image = image.img
         node.projection = projection
         node.texture_mapping.rotation = rotation
@@ -280,6 +282,17 @@ class NodeMaterial:
         target = self.get_node(target)
         self.links.new(target.inputs[input], source.outputs[output])
 
+    def link_value_to_inputs(self, inputs, src, target):
+        if src is None:
+            return
+        if isinstance(src, str):
+            shader_img = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
+            shader_img.image = Image(src).img
+            self.mat.node_tree.links.new(
+                inputs[target], shader_img.outputs["Color"])
+        else:
+            inputs[target].default_value = src
+
 
 class Node:
     def __init__(self, node, mat):
@@ -332,10 +345,13 @@ class Material(NodeMaterial):
         transmission=0,
         subsurface=0,
         texture=None,
+        normal=None,
         cast_shadows=True,
         blend_mode="OPAQUE",
         shadow_mode=None,
         displace=False,
+        displacement=None,
+        displacement_scale=1,
         bump=False,
     ):
         super().__init__()
@@ -343,17 +359,17 @@ class Material(NodeMaterial):
         inputs = self.nodes["Principled BSDF"].inputs
 
         # PBR
-        color = hex_to_rgb(color)
-        inputs['Base Color'].default_value = (
-            color[0], color[1], color[2], 1)
-        inputs['Roughness'].default_value = roughness
-        inputs['Metallic'].default_value = metallic
-        inputs['Specular'].default_value = specular
-        inputs['Transmission'].default_value = transmission
-        inputs['Subsurface'].default_value = subsurface
-
+        inputs['Base Color'].default_value = hex_to_rgba(color)
+        self.link_value_to_inputs(inputs, texture, "Base Color")
+        self.link_value_to_inputs(inputs, transmission, "Transmission")
+        self.link_value_to_inputs(inputs, subsurface, "Subsurface")
+        self.link_value_to_inputs(inputs, roughness, "Roughness")
+        self.link_value_to_inputs(inputs, specular, "Specular")
+        self.link_value_to_inputs(inputs, metallic, "Metallic")
+        self.link_value_to_inputs(inputs, normal, "Normal")
         self.mat.blend_method = blend_mode
 
+        # displacement
         if displace and not bump:
             self.mat.cycles.displacement_method = "DISPLACEMENT"
         elif displace and bump:
@@ -376,13 +392,22 @@ class Material(NodeMaterial):
                     ec[0], ec[1], ec[2], 1)
             inputs['Emission Strength'].default_value = emission_strength
 
-        if texture is not None:
-            if isinstance(texture, str):
-                texture = Image(texture)
-            texImage = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
-            texImage.image = texture.img
-            self.mat.node_tree.links.new(
-                inputs["Base Color"], texImage.outputs["Color"])
+        # if texture is not None:
+        #     if isinstance(texture, str):
+        #         texture = Image(texture)
+        #     texImage = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
+        #     texImage.image = texture.img
+        #     self.mat.node_tree.links.new(
+        #         inputs["Base Color"], texImage.outputs["Color"])
+
+        if displacement is not None:
+            # disp_img = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
+            # disp_img.image = Image(displacement).img
+            disp_img = self.create_texture(displacement)
+            disp_node = self.create_displacement(scale=displacement_scale)
+            disp_img["Color"].to(disp_node[0])
+            disp_node["Displacement"].to(self.material_output["Displacement"])
+            # self.mat.node_tree.links.new(self.material_output._mat["Displacement"], )
 
 
 class VolumeMaterial(NodeMaterial):
