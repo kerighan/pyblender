@@ -4,6 +4,7 @@ from math import radians
 import bmesh
 import bpy
 from mathutils import Euler, Vector
+from mathutils.bvhtree import BVHTree
 
 from .geometry import Geometry
 from .utils import look_at, random_string, to_radians
@@ -113,6 +114,12 @@ class Mesh:
     def modify_collision(self):
         m = self.obj.modifiers.new('collision', 'COLLISION')
         m.settings.use = True
+        return m
+
+    def modify_decimate(self, decimate_type="COLLAPSE"):
+        m = self.obj.modifiers.new('decimate', 'DECIMATE')
+        m.decimate_type = decimate_type
+        m.use_symmetry = True
         return m
 
     def modify_explode(self, edge_cut=False):
@@ -712,12 +719,64 @@ class Model(Mesh):
             bpy.ops.import_scene.gltf(filepath=src)
         elif ".fbx" == ext:
             bpy.ops.import_scene.fbx(filepath=src)
+        elif ".obj" == ext:
+            bpy.ops.import_scene.obj(filepath=src)
         else:
             raise UnknownFileError(f"{ext} not supported")
         n_objects = len(bpy.context.scene.objects) - n_objects
+        if n_objects > 1:
+            self.parts = []
+            for obj in bpy.context.scene.objects[-n_objects:]:
+                mesh = Mesh()
+                mesh.obj = obj
+                self.parts.append(mesh)
+        else:
+            self.obj = bpy.context.scene.objects[-1]
+            self.init(material, visible)
 
-        self.parts = []
-        for obj in bpy.context.scene.objects[-n_objects:]:
-            mesh = Mesh()
-            mesh.obj = obj
-            self.parts.append(mesh)
+
+def deselect_all():
+    try:
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    except:
+        pass
+    bpy.ops.object.select_all(action='DESELECT')
+
+
+def merge_geometries(boxes):
+    # found here:
+    # https://blender.stackexchange.com/questions/140673/how-to-combine-multiple-cubes-with-double-faces
+    deselect_all()
+
+    bm = bmesh.new()
+    for box in boxes:
+        o = box.obj
+        o.select_set(True)
+        bm.from_mesh(o.data)
+        bmesh.ops.transform(bm, verts=bm.verts[-8:],
+                            matrix=o.matrix_world)
+    bpy.ops.object.delete()
+
+    bvhtree = BVHTree().FromBMesh(bm, epsilon=1e-5)
+    faces = bm.faces[:]
+    remove = []
+    while faces:
+        f = faces.pop()
+        pair = bvhtree.find_nearest_range(f.calc_center_median(), 1e-4)
+        if len(pair) > 2:
+            remove.extend(p[2] for p in pair)
+
+    bm.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[bm.faces[i] for i in set(remove)],
+                     context="FACES_KEEP_BOUNDARY")
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    me = bpy.data.meshes.new("CubeBoundaryFaces")
+    bm.to_mesh(me)
+    ob = bpy.data.objects.new("CubeBoundaryFaces", me)
+    bpy.context.scene.collection.objects.link(ob)
+    bpy.context.view_layer.objects.active = ob
+    ob.select_set(True)
+
+    mesh = Mesh()
+    mesh.obj = ob
+    return mesh

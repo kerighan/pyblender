@@ -1,7 +1,8 @@
-from .texture import Image, Texture
 import bpy
 
 from pyblender.utils import random_string
+
+from .texture import Image, Texture
 
 
 class CompositorNode:
@@ -47,7 +48,7 @@ class Compositor:
         node["Distort"] = distortion
         node["Dispersion"] = dispersion
         return node
-    
+
     def create_image(self, texture):
         if isinstance(texture, str):
             texture = Image(texture)
@@ -70,10 +71,14 @@ class Compositor:
         return CompositorNode(node, self)
 
     def create_glare(
-        self, size=8, fade=0, mix=0, quality="HIGH", glare_type="FOG_GLOW"
+        self,
+        size=8, fade=0, mix=0,
+        quality="HIGH", glare_type="FOG_GLOW",
+        threshold=0
     ):
         node = self.scene.node_tree.nodes.new(type="CompositorNodeGlare")
         node.glare_type = glare_type
+        node.threshold = threshold
         node.quality = quality
         node.fade = fade
         node.mix = mix

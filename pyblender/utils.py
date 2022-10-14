@@ -11,6 +11,10 @@ def to_radians(rotation):
 
 
 def hex_to_rgb(value):
+    if isinstance(value, tuple):
+        if len(value) == 4:
+            value = tuple(value[:3])
+        return value
     value = value.lstrip('#')
     lv = len(value)
     return tuple(
@@ -18,6 +22,11 @@ def hex_to_rgb(value):
 
 
 def hex_to_rgba(value, alpha=1):
+    if isinstance(value, tuple):
+        value = [v / 255. for v in value]
+        if len(value) == 3:
+            value = tuple(value + [1])
+        return value
     value = value.lstrip('#')
     lv = len(value)
     res = [

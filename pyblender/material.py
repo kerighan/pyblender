@@ -5,28 +5,6 @@ from pyblender.texture import Image, Texture
 from .utils import hex_to_rgb, hex_to_rgba, random_string
 
 
-def create_glow_material(color, emission_strength=1):
-    color = hex_to_rgb(color)
-
-    mat = bpy.data.materials.new(name='Material')
-    mat.use_nodes = True
-
-    mat_nodes = mat.node_tree.nodes
-    mat_nodes.clear()
-    diffuse = mat_nodes.new("ShaderNodeEmission")
-    inputs = mat.node_tree.nodes["Emission"].inputs
-    inputs["Color"].default_value = (
-        color[0], color[1], color[2], 1)
-    inputs["Strength"].default_value = emission_strength
-    output = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
-
-    links = mat.node_tree.links
-    links.new(
-        diffuse.outputs[0],
-        output.inputs[0])
-    return mat
-
-
 class NodeMaterial:
     def __init__(self, name="NodeMaterial"):
         self.mat = bpy.data.materials.new(name=random_string(10))
@@ -387,8 +365,7 @@ class Material(NodeMaterial):
 
         if emission_strength > 0:
             if emission_color is None:
-                inputs['Emission'].default_value = (
-                    color[0], color[1], color[2], 1)
+                inputs['Emission'].default_value = hex_to_rgba(color)
             else:
                 ec = hex_to_rgb(emission_color)
                 inputs['Emission'].default_value = (
