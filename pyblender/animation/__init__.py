@@ -288,3 +288,51 @@ def highlight(
             (easing, width, 0)]
         encart += tl_encart.delay(delay)
     return encart
+
+
+class Movement:
+    def __init__(self, velocity=.05, use_rotation=False):
+        self.use_rotation = use_rotation
+        self.velocity = velocity
+        self.frames = []
+        self.rotation_frames = []
+    
+    def start_at(self, x, y, z):
+        pos = np.array([x, y, z])
+        self.last_order = pos
+        self.last_pos = pos
+        self.frames.append(pos)
+        self.rotation_frames.append((0, 0, 0))
+    
+    def move_to(self, x, y, z):
+        pos = np.array([x, y, z])
+        last_pos = self.frames[-1]
+        distance = np.sum((pos - last_pos)**2)**.5
+        n_frames = round(distance/self.velocity)
+        
+        direction = pos - self.last_order
+        self.last_order = pos
+        if direction[0] == 0:
+            z_angle = 90 if direction[1] > 0 else -90
+        else:
+            z_angle = np.arcsin(direction[1] / direction[0])
+        
+        for i in range(1, n_frames+1):
+            t = i / n_frames
+            interp = t * pos + (1-t)*last_pos
+            self.frames.append(interp)
+            self.rotation_frames.append((90, 0, z_angle))
+    
+    def apply(self, mesh):
+        mesh.animate_location(self.frames)
+        if self.use_rotation:
+            mesh.animate_rotation(self.rotation_frames)
+
+    @property
+    def duration(self):
+        return len(self.frames)
+    
+
+def flicker(n_steps, step_size, start_with=True):
+    unit = [start_with] * step_size + [not start_with] * step_size
+    return unit * n_steps

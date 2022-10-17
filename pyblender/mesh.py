@@ -7,6 +7,7 @@ from mathutils import Euler, Vector
 from mathutils.bvhtree import BVHTree
 
 from .geometry import Geometry
+from .material import NodeMaterial
 from .utils import look_at, random_string, to_radians
 
 
@@ -88,6 +89,10 @@ class Mesh:
     def init(self, material, visible):
         self.add_material(material)
         self.set_visible(visible)
+    
+    def modify_boolean(self, mesh):
+        m = self.obj.modifiers.new('boolean', 'BOOLEAN')
+        m.object = mesh.obj
 
     def modify_rigid_body(
         self, active="ACTIVE", mass=1, friction=0.5, restitution=0.5,
@@ -185,8 +190,12 @@ class Mesh:
         m.octree_depth = octree_depth
 
     def scale(self, scale=1):
-        self.select()
-        bpy.ops.transform.resize(value=(scale, scale, scale))
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.scale(scale)
+        else:
+            self.select()
+            bpy.ops.transform.resize(value=(scale, scale, scale))
 
     def rotate(self, x, y, z):
         if hasattr(self, "parts"):
@@ -235,29 +244,49 @@ class Mesh:
         self.obj.keyframe_insert("location", frame=frame_start+4)
 
         pref_edit.keyframe_new_interpolation_type = keyInterp
-
-    def animate_rotation(self, values, frames=None, interpolation="LINEAR"):
+    
+    def animate_visibility(self, values, frames=None):
         if frames is None:
             frames = range(len(values))
-        for frame, rotation in zip(frames, values):
-            self.obj.rotation_euler = to_radians(rotation)
-            kf = self.obj.keyframe_insert(
-                "rotation_euler", index=0, frame=frame)
+        for frame, value in zip(frames, values):
+            self.obj.hide_render = value
+            self.obj.keyframe_insert(data_path="hide_render", frame=frame)
 
-    def animate_rotation_z(self, values, frames=None, interpolation="LINEAR"):
+    def animate_rotation(self, values, frames=None):
         if frames is None:
             frames = range(len(values))
-        for frame, rotation in zip(frames, values):
-            self.obj.rotation_euler = (0, 0, radians(rotation))
-            kf = self.obj.keyframe_insert(
-                "rotation_euler", index=2, frame=frame)
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.animate_rotation(values, frames)
+        else:
+            self.obj.rotation_mode = 'XYZ'
+            for frame, rotation in zip(frames, values):
+                self.obj.rotation_euler = to_radians(rotation)
+                kf = self.obj.keyframe_insert(
+                    "rotation_euler", index=2, frame=frame)
+
+    def animate_rotation_z(self, values, frames=None):
+        if frames is None:
+            frames = range(len(values))
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.animate_rotation_z(values, frames)
+        else:
+            for frame, rotation in zip(frames, values):
+                self.obj.rotation_euler = (0, 0, radians(rotation))
+                kf = self.obj.keyframe_insert(
+                    "rotation_euler", index=2, frame=frame)
 
     def animate_location(self, values, frames=None):
         if frames is None:
             frames = range(len(values))
-        for frame, location in zip(frames, values):
-            self.obj.location = location
-            self.obj.keyframe_insert("location", frame=frame)
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.animate_location(values, frames)
+        else:
+            for frame, location in zip(frames, values):
+                self.obj.location = location
+                self.obj.keyframe_insert("location", frame=frame)
 
     def animate_scale(self, values, frames=None):
         if frames is None:
@@ -731,8 +760,13 @@ class Model(Mesh):
                 mesh.obj = obj
                 self.parts.append(mesh)
         else:
-            self.obj = bpy.context.scene.objects[-1]
+            self.obj = bpy.context.scene.objects[-1]                
             self.init(material, visible)
+    
+    def get_material(self):
+        if len(self.obj.material_slots) == 1:
+            mat = NodeMaterial(material=self.obj.material_slots[0].material)
+            return mat
 
 
 def deselect_all():

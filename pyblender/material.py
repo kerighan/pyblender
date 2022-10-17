@@ -6,13 +6,19 @@ from .utils import hex_to_rgb, hex_to_rgba, random_string
 
 
 class NodeMaterial:
-    def __init__(self, name="NodeMaterial"):
-        self.mat = bpy.data.materials.new(name=random_string(10))
+    def __init__(self, name="NodeMaterial", material=None):
+        if material is None:
+            self.mat = bpy.data.materials.new(name=random_string(10))
+        else:
+            self.mat = material
         self.mat.use_nodes = True
         self.nodes = self.mat.node_tree.nodes
         self.links = self.mat.node_tree.links
         self.material_output = Node(self.nodes.get("Material Output"), self)
         self.bsdf = Node(self.nodes.get("Principled BSDF"), self)
+    
+    def get_node_by_name(self, name):
+        return Node(self.nodes.get(name), self)
 
     def reset(self):
         for node in self.nodes:
@@ -286,6 +292,13 @@ class Node:
 
     def animate(self, key, values, frames=None):
         path = self._node.inputs[key]
+        frames = range(len(values)) if frames is None else frames
+        for frame, value in zip(frames, values):
+            path.default_value = value
+            path.keyframe_insert(data_path="default_value", frame=frame)
+
+    def animate_internal(self, values, frames=None):
+        path = self._node.outputs["Value"]
         frames = range(len(values)) if frames is None else frames
         for frame, value in zip(frames, values):
             path.default_value = value

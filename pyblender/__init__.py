@@ -2,6 +2,7 @@ import os
 import subprocess
 
 import bpy
+import sys
 
 from .camera import Camera
 from .light import PointLight, SpotLight, Sun
@@ -16,6 +17,11 @@ if bpy.context.scene.rigidbody_world is None:
 
 rigid_collection = bpy.data.collections.new("rigid_collection")
 bpy.context.scene.rigidbody_world.collection = rigid_collection
+
+
+dir = os.path.dirname(bpy.data.filepath)
+if not dir in sys.path:
+    sys.path.append(dir)
 
 
 def reset():
@@ -142,15 +148,15 @@ class Scene:
             if os.name == 'nt':
                 cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                        f'"{export_folder}%4d.png" '
-                       f'-c:v libx264 -vf "fps=fps={frame_rate}" '
+                       f'-c:v libx264rgb -vf "fps=fps={frame_rate}" '
                        f'-force_key_frames expr:gte(t,n_forced*1) -crf {crf} '
-                       f'-profile main -pix_fmt yuv420p {filename}')
+                       f'-profile main {filename}')
             else:
                 cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                        f'"{export_folder}%4d.png" '
-                       f'-c:v libx264 -vf "fps=fps={frame_rate}" '
+                       f'-c:v libx264rgb -vf "fps=fps={frame_rate}" '
                        f'-force_key_frames expr:gte\(t,n_forced*1\) -crf {crf} '
-                       f'-profile main -pix_fmt yuv420p {filename}')
+                       f'-profile main {filename}')
             subprocess.check_output(cmd, shell=True)
 
     def set_animation_bounds(self, start=1, end=100):
