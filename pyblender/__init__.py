@@ -75,8 +75,10 @@ class Scene:
         gravity=(0.0, 0.0, -9.81),
         crf=18,
         contrast="Medium High Contrast",
+        view_transform="Filmic",
         animation=False,
-        bake=True
+        bake=True,
+        clean_render_directory=False
     ):
         self.scene.gravity = gravity
         self.scene.frame_set(frame)
@@ -119,13 +121,15 @@ class Scene:
                 if export_folder[-1] != "/":
                     export_folder += "/"
             export_folder = os.path.join(directory, export_folder)
-            for f in glob.glob(export_folder+"*.png"):
-                os.remove(f)
+            if clean_render_directory:
+                for f in glob.glob(export_folder+"*.png"):
+                    os.remove(f)
         else:
             export_folder = os.path.join(directory, filename)
 
         # export settings
         self.scene.view_settings.look = contrast
+        self.scene.view_settings.view_transform = view_transform
         self.scene.view_settings.exposure = exposure
         self.scene.view_settings.gamma = gamma
         self.scene.render.image_settings.file_format = 'PNG'
@@ -148,9 +152,8 @@ class Scene:
             if os.name == 'nt':
                 cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                        f'"{export_folder}%4d.png" '
-                       f'-c:v libx264rgb -vf "fps=fps={frame_rate}" '
-                       f'-force_key_frames expr:gte(t,n_forced*1) -crf {crf} '
-                       f'-profile main {filename}')
+                       f'-c:v libx264rgb -crf {crf} '
+                       f'{filename}')
             else:
                 cmd = (f'ffmpeg -loglevel panic -y -r {frame_rate} -i '
                        f'"{export_folder}%4d.png" '
@@ -215,3 +218,17 @@ class Scene:
         links.new(
             color_correction_node.outputs["Image"], glare_node.inputs["Image"])
         links.new(glare_node.outputs["Image"], composite_node.inputs["Image"])
+
+    def set_freestyle(self, line_thickness=.5):
+        freestyle = self.scene.view_layers[0].freestyle_settings
+        lineset = freestyle.linesets[0]
+        
+        LineSetV = freestyle.linesets.new('VisibleLineset')
+        LineSetV.select_by_visibility = True
+        LineSetV.select_by_edge_types = True
+        LineSetV.select_by_face_marks = False
+        LineSetV.select_by_image_border = False
+        lineset.linestyle = LineSetV.linestyle
+
+        self.scene.render.use_freestyle = True
+        self.scene.render.line_thickness = line_thickness

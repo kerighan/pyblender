@@ -29,11 +29,19 @@ class Mesh:
         if material is not None:
             self.obj.data.materials.append(material.mat)
 
-    def set_material(self, material):
+    def set_material(self, material, index=0):
         try:
-            self.obj.data.materials[0] = material.mat
+            self.obj.data.materials[index] = material.mat
         except IndexError:
             self.add_material(material)
+    
+    def get_material(self, index=0):
+        if isinstance(index, int):
+            return NodeMaterial(material=self.obj.data.materials[index])
+        for mat in self.obj.data.materials:
+            if mat.name == index:
+                return NodeMaterial(material=mat)
+        raise ValueError
 
     def set_visible(self, visible):
         if not visible:
@@ -163,10 +171,17 @@ class Mesh:
         m.subdivision_type = subdivision_type
         return m
 
-    def modify_displace(self, texture=None, strength=1):
+    def modify_displace(
+        self, texture=None, strength=1, mid_level=0, texture_coords="UV"
+    ):
         m = self.obj.modifiers.new('displace', 'DISPLACE')
         m.strength = strength
+        m.mid_level = mid_level
+        m.texture_coords = texture_coords
         if texture is not None:
+            if isinstance(texture, str):
+                from .texture import Texture
+                texture = Texture(texture)
             m.texture = texture.texture
         return m
 
@@ -189,10 +204,18 @@ class Mesh:
         m.use_smooth_shade = smooth_shade
         m.octree_depth = octree_depth
 
-    def scale(self, scale=1):
+    def scale(self, x=1, y=1, z=1):
         if hasattr(self, "parts"):
             for part in self.parts:
-                part.scale(scale)
+                part.scale(x, y, z)
+        else:
+            self.select()
+            bpy.ops.transform.resize(value=(x, y, z))
+
+    def resize(self, scale=1):
+        if hasattr(self, "parts"):
+            for part in self.parts:
+                part.resize(scale)
         else:
             self.select()
             bpy.ops.transform.resize(value=(scale, scale, scale))
@@ -763,10 +786,16 @@ class Model(Mesh):
             self.obj = bpy.context.scene.objects[-1]                
             self.init(material, visible)
     
-    def get_material(self):
-        if len(self.obj.material_slots) == 1:
-            mat = NodeMaterial(material=self.obj.material_slots[0].material)
-            return mat
+    # def get_material(self, index=0):
+    #     if len(self.obj.material_slots) == 1:
+    #         mat = NodeMaterial(material=self.obj.material_slots[0].material)
+    #         return mat
+
+    def get_material_names(self):
+        res = []
+        for mat in self.obj.material_slots:
+            res.append(mat.name)
+        return res
 
 
 def deselect_all():

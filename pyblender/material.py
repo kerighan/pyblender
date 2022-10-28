@@ -28,12 +28,25 @@ class NodeMaterial:
         node = self.mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
         return Node(node, self)
 
+    def create_diffuse_bsdf(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeBsdfDiffuse")
+        return Node(node, self)
+
     def create_transparent_bsdf(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeBsdfTransparent")
         return Node(node, self)
 
     def create_volume_scatter(self):
         node = self.mat.node_tree.nodes.new("ShaderNodeVolumeScatter")
+        return Node(node, self)
+    
+    def create_shader_to_rgb(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeShaderToRGB")
+        return Node(node, self)
+
+    def create_ambient_occlusion(self, samples=16):
+        node = self.mat.node_tree.nodes.new("ShaderNodeAmbientOcclusion")
+        node.samples = samples
         return Node(node, self)
 
     def create_normal_map(self, tex=None, strength=10):
@@ -99,6 +112,10 @@ class NodeMaterial:
         node = self.mat.node_tree.nodes.new("ShaderNodeEmission")
         node.inputs["Strength"].default_value = strength
         node.inputs["Color"].default_value = hex_to_rgba(color)
+        return Node(node, self)
+
+    def create_camera_data(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeCameraData")
         return Node(node, self)
 
     def create_mapping(self):
@@ -221,6 +238,22 @@ class NodeMaterial:
         node.operation = operation
         return Node(node, self)
 
+    def create_separate_hsv(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeSeparateHSV")
+        node = Node(node, self)
+        return node
+    
+    def create_combine_hsv(self):
+        node = self.mat.node_tree.nodes.new("ShaderNodeCombineHSV")
+        node = Node(node, self)
+        return node
+    
+    def create_rgb(self, color):
+        node = self.mat.node_tree.nodes.new("ShaderNodeRGB")
+        node.outputs[0].default_value = hex_to_rgba(color)
+        node = Node(node, self)
+        return node
+
     def create_map_range(self, source=[0, 1], target=[0, 1]):
         node = self.mat.node_tree.nodes.new("ShaderNodeMapRange")
         node.inputs[1].default_value = source[0]
@@ -305,7 +338,13 @@ class Node:
             path.keyframe_insert(data_path="default_value", frame=frame)
 
     def __setitem__(self, key, value):
-        self._node.inputs[key].default_value = value
+        if isinstance(value, str) and value[0] == "#":
+            try:
+                self._node.inputs[key].default_value = hex_to_rgba(value)
+            except ValueError:
+                self._node.inputs[key].default_value = hex_to_rgb(value)
+        else:
+            self._node.inputs[key].default_value = value
 
     def __getitem__(self, key):
         self._current = key
@@ -385,22 +424,36 @@ class Material(NodeMaterial):
                     ec[0], ec[1], ec[2], 1)
             inputs['Emission Strength'].default_value = emission_strength
 
-        # if texture is not None:
-        #     if isinstance(texture, str):
-        #         texture = Image(texture)
-        #     texImage = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
-        #     texImage.image = texture.img
-        #     self.mat.node_tree.links.new(
-        #         inputs["Base Color"], texImage.outputs["Color"])
-
         if displacement is not None:
-            # disp_img = self.mat.node_tree.nodes.new('ShaderNodeTexImage')
-            # disp_img.image = Image(displacement).img
             disp_img = self.create_texture(displacement)
             disp_node = self.create_displacement(scale=displacement_scale)
             disp_img["Color"].to(disp_node[0])
             disp_node["Displacement"].to(self.material_output["Displacement"])
-            # self.mat.node_tree.links.new(self.material_output._mat["Displacement"], )
+
+
+class DiffuseMaterial(NodeMaterial):
+    def __init__(
+        self,
+        color="#FFFFFF",
+        roughness=.5,
+        texture=None,
+        normal=None,
+        blend_mode="OPAQUE",
+    ):
+        super().__init__()
+
+        output_node = self.nodes.new(type='ShaderNodeOutputMaterial')
+        principled_node = self.nodes.new(type='ShaderNodeBsdfDiffuse')
+        self.links.new(principled_node.outputs[0],
+                       output_node.inputs['Surface'])
+        inputs = self.nodes["Diffuse BSDF"].inputs
+
+        # PBR
+        inputs["Color"].default_value = hex_to_rgba(color)
+        self.link_value_to_inputs(inputs, texture, "Color")
+        self.link_value_to_inputs(inputs, roughness, "Roughness")
+        self.link_value_to_inputs(inputs, normal, "Normal")
+        self.mat.blend_method = blend_mode
 
 
 class VolumeMaterial(NodeMaterial):
