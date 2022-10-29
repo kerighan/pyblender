@@ -1,5 +1,6 @@
 from pyblender.mesh import Box
 from pyblender.material import Material
+import numpy as np
 
 DURATION = 5
 N_FRAMES = DURATION * 30
@@ -101,16 +102,26 @@ def get_fractal(resolution=128):
         resolution_mode="VOXEL_AMOUNT")
     volume_to_mesh["Voxel Amount"] = resolution
     set_material = geometry.create_set_material(mat)
+    combine_xyz = geometry.create_combine_xyz()
+    # x = geometry.create_value(0)
+    y = geometry.create_value(0)
+    vector_add = geometry.create_vector_math("ADD")
+    y[0].to(combine_xyz["Y"])
+    combine_xyz["Z"] = 0
+    combine_xyz["Vector"].to(vector_add[0])
+    position[0].to(vector_add[1])
+
+    y.animate_value(np.sin(np.linspace(0, 2*np.pi, N_FRAMES+1)) / 5)
     
     multiply = geometry.create_operation("MULTIPLY", -1)
     add = geometry.create_operation("ADD", 2.5)
     clamp = geometry.create_clamp()
-    is_less_than = geometry.create_operation("LESS_THAN", 2)
+    # is_less_than = geometry.create_operation("LESS_THAN", 2)
     
-    vector = iteration(geometry, position, exponent, position)
-    vector = iteration(geometry, vector, exponent, position)
-    vector = iteration(geometry, vector, exponent, position)
-    vector = iteration(geometry, vector, exponent, position)
+    vector = iteration(geometry, position, exponent, vector_add)
+    vector = iteration(geometry, vector, exponent, vector_add)
+    vector = iteration(geometry, vector, exponent, vector_add)
+    vector = iteration(geometry, vector, exponent, vector_add)
 
     vector[0].to(length[0])
     
@@ -127,8 +138,7 @@ def get_fractal(resolution=128):
     set_material["Geometry"].to(geometry.out_node[0])
     # volume_to_mesh["Mesh"].to(geometry.out_node[0])
     
-    import numpy as np
-    
     exponent.animate_value(
         (5.8) + 2.*np.cos(np.linspace(0, 2*np.pi, N_FRAMES+1)))
+    fractal.shade_smooth()
     return fractal

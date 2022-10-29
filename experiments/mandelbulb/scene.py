@@ -24,10 +24,10 @@ def add_effects(scene):
 left = PointLight((1, 2, 0))
 right = PointLight((1, -2, 0))
 
-fractal = get_fractal(512)
+fractal = get_fractal(550)
 plane = Plane(size=10, material=Material(color="#161513"))
 plane.rotate(0, 90, 0)
-plane.translate(-4, 0, 0)
+plane.translate(-3.4, 0, 0)
 
 camera = Camera((4, 0, 0), use_dof=True, aperture_fstop=.5,
                 focus_point=(1, 0, 0))
@@ -35,4 +35,4 @@ camera.look_at((1, 0, 0))
 scene = Scene(size=(720, 720), cycles=False)
 scene.set_animation_bounds(1, N_FRAMES)
 # add_effects(scene)
-scene.render("render.png", samples=256, frame=75)
+scene.render("render.mp4", samples=512, frame=75)
