@@ -1,27 +1,19 @@
+"""A grid displaced by a height map, with a glowing slab hovering above it."""
+
 import pyblender as pb
-from pyblender.texture import Image
-from pyblender.modifier import Displacement
 
-pb.SpotLight((-.5, -.5, 1), energy=60)
-image = Image("index.jpeg")
-texture = Image("texture.jpg")
+heightmap = pb.Image("assets/heightmap.jpeg")
 
-# add plane
-plane_mat = pb.Material(color="#DDDDDD", roughness=.9)
-plane = pb.Grid(width=700, height=700, material=plane_mat)
-displacement = Displacement(plane, image, strength=.3)
+ground = pb.Grid(width=700, height=700, material=pb.Material(color="#DDDDDD", roughness=0.9))
+pb.Displacement(ground, heightmap, strength=0.3)
 
-loc = (-.1, 0, .03)
-cube_mat = pb.Material(color="#FFFFFF", emissive=2)
-cube = pb.Box(scale=(.15, .3, .01), size=1,
-              location=loc, material=cube_mat)
-pb.SpotLight(loc, energy=60)
-cube.look_at((.8, 0, .2))
+slab_location = (-0.1, 0, 0.03)
+slab = pb.Cube(location=slab_location, scale=(0.15, 0.3, 0.01),
+               material=pb.Material(emission_strength=2))
+slab.look_at((0.8, 0, 0.2))
+pb.SpotLight(slab_location, energy=60)
+pb.SpotLight((-0.5, -0.5, 1), energy=60)
 
-camera = pb.Camera((.8, 0, .2))
-camera.look_at((0, 0, 0.1))
-
+camera = pb.Camera((0.8, 0, 0.2)).look_at((0, 0, 0.1))
 scene = pb.Scene(camera)
-scene.scene.gravity = 0
-# scene.add_bloom(intensity=.2, threshold=.9, radius=5)
-scene.render("heightmap.png", fast=False, size=(1920//2, 1080//2))
+scene.render("renders/heightmap.png", fast=False, size=(960, 540))

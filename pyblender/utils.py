@@ -1,77 +1,36 @@
-from math import radians
-
-import numpy as np
-from mathutils import Vector
-
-
-def to_radians(rotation):
-    return (radians(rotation[0]),
-            radians(rotation[1]),
-            radians(rotation[2]))
+"""Small helpers shared across the package."""
 
 
 def hex_to_rgb(value):
-    if isinstance(value, tuple):
-        if len(value) == 4:
-            value = tuple(value[:3])
-        return value
-    value = value.lstrip('#')
-    lv = len(value)
-    return tuple(
-        int(value[i:i + lv // 3], 16)/255. for i in range(0, lv, lv // 3))
+    """Convert a ``#RRGGBB`` string to an ``(r, g, b)`` tuple of floats in [0, 1]."""
+    value = value.lstrip("#")
+    if len(value) != 6:
+        raise ValueError(f"Expected a 6-digit hex color, got {value!r}")
+    return tuple(int(value[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
 
 
-def hex_to_rgba(value, alpha=1):
-    if isinstance(value, tuple):
-        value = [v / 255. for v in value]
-        if len(value) == 3:
-            value = tuple(value + [1])
-        return value
-    value = value.lstrip('#')
-    lv = len(value)
-    res = [
-        int(value[i:i + lv // 3], 16)/255. for i in range(0, lv, lv // 3)]
-    res += [alpha]
-    return res
+def hex_to_rgba(value, alpha=1.0):
+    """Convert a hex color string to an ``(r, g, b, a)`` tuple."""
+    return (*hex_to_rgb(value), alpha)
+
+
+def to_rgb(color):
+    """Accept a hex string or an ``(r, g, b)`` sequence of floats in [0, 1]."""
+    if isinstance(color, str):
+        return hex_to_rgb(color)
+    return tuple(float(c) for c in color[:3])
+
+
+def to_rgba(color, alpha=1.0):
+    return (*to_rgb(color), alpha)
 
 
 def look_at(obj, point):
-    loc = obj.location
-    direction = np.array(point) - loc
-    rot_quat = Vector(direction).to_track_quat('-Z', 'Y')
-    obj.rotation_euler = rot_quat.to_euler()
+    """Rotate ``obj`` so that its local -Z axis points towards ``point``.
 
+    This is the convention used by cameras and lights in Blender.
+    """
+    import mathutils  # only available inside Blender
 
-def random_string(length):
-    import random
-    import string
-    return ''.join(
-        random.choice(string.ascii_lowercase) for i in range(length))
-
-
-def normal_in_dir(normal, direction, limit=0.5):
-    return direction.dot(normal) > limit
-
-
-def face_up(normal, limit=0.5):
-    return normal_in_dir(normal, Vector((0, 0, 1)), limit)
-
-
-def face_down(normal, limit=0.5):
-    return normal_in_dir(normal, Vector((0, 0, -1)), limit)
-
-
-def face_front(normal, limit=0.5):
-    return normal_in_dir(normal, Vector((1, 0, 0)), limit)
-
-
-def face_back(normal, limit=0.5):
-    return normal_in_dir(normal, Vector((-1, 0, 0)), limit)
-
-
-def face_right(normal, limit=0.5):
-    return normal_in_dir(normal, Vector((0, 1, 0)), limit)
-
-
-def face_left(normal, limit=0.5):
-    return normal_in_dir(normal, Vector((0, -1, 0)), limit)
+    direction = mathutils.Vector(point) - obj.location
+    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()

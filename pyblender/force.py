@@ -1,41 +1,28 @@
 import bpy
 
+from .base import BlenderObject
 
-class Force:
-    def set_strength(self, strength):
-        self.force.field.strength = strength
 
-    def set_noise(self, noise):
-        self.force.field.noise = noise
+class Force(BlenderObject):
+    """Base class for force fields acting on particles.
 
-    def set_flow(self, flow):
-        self.force.field.flow = flow
+    Use :class:`Vortex` or :class:`Turbulence`.
+    """
 
-    def set_size(self, size):
-        self.force.field.size = size
+    force_type = None
+
+    def __init__(self, location=(0, 0, 0), strength=1.0, noise=0.0, flow=0.0):
+        bpy.ops.object.effector_add(type=self.force_type, location=location)
+        self.obj = bpy.context.active_object
+        self.field = self.obj.field
+        self.field.strength = strength
+        self.field.noise = noise
+        self.field.flow = flow
 
 
 class Vortex(Force):
-    def __init__(self, location=(0, 0, 0), strength=1, noise=0, flow=0):
-        bpy.ops.object.effector_add(type="VORTEX", location=location)
-        self.force = bpy.context.object
-
-        self.set_strength(strength)
-        self.set_noise(noise)
-        self.set_flow(flow)
+    force_type = "VORTEX"
 
 
 class Turbulence(Force):
-    def __init__(self,
-                 location=(0, 0, 0),
-                 strength=1,
-                 size=0,
-                 noise=0,
-                 flow=0):
-        bpy.ops.object.effector_add(type="TURBULENCE", location=location)
-        self.force = bpy.context.object
-
-        self.set_strength(strength)
-        self.set_noise(noise)
-        self.set_size(size)
-        self.set_flow(flow)
+    force_type = "TURBULENCE"
