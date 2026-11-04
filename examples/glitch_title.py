@@ -18,8 +18,9 @@ motion.slide_out(status, offset=(0, -0.5, 0), start=130, duration=12)
 
 pb.Plane(size=60, location=(0, 4, 0), rotation=(1.5708, 0, 0),
          material=pb.Material(color="#0D1117", roughness=0.9, metallic=0))
-pb.Plane(size=60, location=(0, 0, -1.5), material=pb.Material(color="#0D1117", roughness=0.4, metallic=0))
-pb.SpotLight((3, -7, 5), focus_point=(0, 0, 0), energy=2500, color="#DDE8FF", size=1.0, blend=0.5)
+pb.Plane(size=60, location=(0, 0, -1.5),
+         material=pb.Material(color="#0D1117", roughness=0.4, metallic=0))
+pb.SpotLight((3, -7, 5), focus_point=(0, 0, 0), energy=2500, color="#DDE8FF", angle=57, blend=0.5)
 pb.PointLight((-5, -3, 2), energy=400, color="#2BFF88", radius=1)
 
 camera = pb.Camera((0, -11, 0.4), lens=50).look_at((0, 0, 0.1))

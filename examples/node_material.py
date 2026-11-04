@@ -1,16 +1,16 @@
-"""Build a procedural material from shader nodes: noise-driven color and displacement."""
+"""Build a procedural material from shader nodes: noise-driven color and displacement.
+
+Sockets are attributes, ``>>`` links them and arithmetic creates Math nodes.
+"""
 
 import pyblender as pb
 
-material = pb.Material()
-noise = material.add_noise_texture(scale=5)
-ramp = material.add_color_ramp(colors=["#FF0000", "#00FF00"])
-height = material.add_math("MULTIPLY", value=0.1)
+material = pb.Material(roughness=0.4)
+noise = material.create_noise_texture(scale=5)
+ramp = material.create_color_ramp(colors=["#FF0000", "#00FF00"])
 
-material.link(noise, ramp, "Fac", "Fac")
-material.link(ramp, material.bsdf, "Color", "Base Color")
-material.link(noise, height, "Fac", 0)
-material.link(height, material.output, "Value", "Displacement")
+noise.fac >> ramp.fac >> material.bsdf.base_color
+(noise.fac * 0.1) >> material.output.displacement
 
 pb.Cube(location=(0, -1, 0), material=material)
 pb.Cube(location=(0, 1, 0), material=material)

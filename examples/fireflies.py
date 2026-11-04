@@ -19,7 +19,7 @@ pb.Plane(size=40, material=pb.Material(color="#1F2A1F", roughness=0.95, metallic
 
 # a single shaft of light from above
 spot = pb.SpotLight((2, -2, 9), focus_point=(0, 0, 0), energy=3000, color="#CFE3FF",
-                    size=0.6, blend=0.3, radius=0.5)
+                    angle=35, blend=0.3, radius=0.5)
 spot.animate_energy([3000, 2000, 3000], [0, N_FRAMES // 2, N_FRAMES])
 
 camera = pb.Camera((7, -7, 2.2), lens=35).look_at((0, 0, 1.2))

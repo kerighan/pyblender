@@ -15,6 +15,7 @@ the same part overwrite each other where their frames overlap.
 import numpy as np
 
 from .animation.easing import EASINGS
+from .utils import to_degrees
 
 __all__ = ["pop_in", "pop_out", "slide_in", "slide_out", "flip_in", "flip_out",
            "typewriter", "wave", "shake", "schedule"]
@@ -107,24 +108,24 @@ def slide_out(items, offset=(0, 1, 0), start=0, duration=20, stagger=2, easing="
 # Rotation
 # ----------------------------------------------------------------------
 
-def flip_in(items, angle=(np.pi / 2, 0, 0), start=0, duration=20, stagger=2, easing="back-out",
+def flip_in(items, angle=(90, 0, 0), start=0, duration=20, stagger=2, easing="back-out",
             **kw):
-    """Rotate each part from ``current + angle`` (radians, per axis) to its current rotation.
+    """Rotate each part from ``current + angle`` (degrees, per axis) to its current rotation.
 
     Parts are hidden before the motion starts.
     """
     for part, frames, progress in schedule(items, start, duration, stagger, easing, **kw):
-        target = np.array(part.obj.rotation_euler)
+        target = np.array(to_degrees(tuple(part.obj.rotation_euler)))
         part.animate_rotation(_lerp(target + angle, target, progress), frames)
         _hide_before(part, frames[0])
     return items
 
 
-def flip_out(items, angle=(-np.pi / 2, 0, 0), start=0, duration=20, stagger=2, easing="back-in",
+def flip_out(items, angle=(-90, 0, 0), start=0, duration=20, stagger=2, easing="back-in",
              **kw):
     """Rotate each part from its current rotation to ``current + angle``, then hide it."""
     for part, frames, progress in schedule(items, start, duration, stagger, easing, **kw):
-        current = np.array(part.obj.rotation_euler)
+        current = np.array(to_degrees(tuple(part.obj.rotation_euler)))
         part.animate_rotation(_lerp(current, current + angle, progress), frames)
         _hide_after(part, frames[-1])
     return items

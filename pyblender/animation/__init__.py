@@ -23,7 +23,7 @@ import numpy as np
 from ..utils import hex_to_rgb
 from .easing import EASINGS, tween
 
-__all__ = ["Timeline", "Cycle", "EASINGS", "tween"]
+__all__ = ["Timeline", "Cycle", "EASINGS", "tween", "linear", "shake", "flicker", "Movement"]
 
 _RESERVED = {"keyframes", "start", "end", "segments", "delay_", "before", "after", "dtype"}
 
@@ -146,3 +146,82 @@ class Cycle(Timeline):
 
     def _local_time(self, t):
         return self.start + (t - self.delay_ - self.start) % (self.end - self.start)
+
+
+# ----------------------------------------------------------------------
+# Helpers producing ``(values, frames)`` pairs for the ``animate_*`` methods
+# ----------------------------------------------------------------------
+
+def linear(start, end, frames, easing="linear"):
+    """Values from ``start`` to ``end`` (numbers or vectors) over ``frames=(first, last)``."""
+    first, last = frames
+    t = np.linspace(0, 1, last - first + 1)
+    values = tween(easing, np.asarray(start, dtype=float), np.asarray(end, dtype=float),
+                   t[:, None] if np.ndim(start) else t)
+    return list(values), list(range(first, last + 1))
+
+
+def shake(frames, origin=(0, 0, 0), frequency=0.2, intensity=0.1, seed=0):
+    """A random smooth jitter around ``origin``: ``frequency`` is the number of
+    direction changes per frame, ``intensity`` the amplitude."""
+    first, last = frames
+    rng = np.random.default_rng(seed)
+    count = max(int(round(frequency * (last - first))), 2)
+    keyframes = np.linspace(first, last, count).astype(int)
+    targets = rng.normal(scale=intensity, size=(count, 3))
+    targets[0] = targets[-1] = 0
+    timeline = Timeline(*keyframes)
+    timeline.offset = [("cubic-in-out", targets[i], targets[i + 1]) for i in range(count - 1)]
+    origin = np.asarray(origin, dtype=float)
+    frames = list(range(first, last + 1))
+    return [origin + timeline[f].offset for f in frames], frames
+
+
+def flicker(steps, step_size=2, start_with=True):
+    """Alternating booleans, ``step_size`` frames each, for ``animate_visibility``."""
+    unit = [start_with] * step_size + [not start_with] * step_size
+    return unit * steps
+
+
+class Movement:
+    """A path made of straight moves at constant speed, applied as location keyframes.
+
+    ::
+
+        path = Movement(speed=0.1).start_at(0, 0, 0).move_to(5, 0, 0).move_to(5, 5, 0)
+        path.apply(cube)          # keyframes location (and heading when turn=True)
+        path.duration             # number of frames
+    """
+
+    def __init__(self, speed=0.05, turn=False):
+        self.speed = speed
+        self.turn = turn
+        self.frames = []
+        self.headings = []
+
+    def start_at(self, x, y, z):
+        self.frames = [np.array((x, y, z), dtype=float)]
+        self.headings = [0.0]
+        return self
+
+    def move_to(self, x, y, z):
+        target = np.array((x, y, z), dtype=float)
+        start = self.frames[-1]
+        distance = float(np.linalg.norm(target - start))
+        count = max(int(round(distance / self.speed)), 1)
+        heading = float(np.degrees(np.arctan2(target[1] - start[1], target[0] - start[0])))
+        for i in range(1, count + 1):
+            self.frames.append(start + (target - start) * i / count)
+            self.headings.append(heading)
+        return self
+
+    @property
+    def duration(self):
+        return len(self.frames)
+
+    def apply(self, obj, start=0):
+        frames = range(start, start + len(self.frames))
+        obj.animate_location(self.frames, frames)
+        if self.turn:
+            obj.animate_rotation([(0, 0, h) for h in self.headings], frames)
+        return obj

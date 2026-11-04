@@ -5,7 +5,7 @@ import pyblender as pb
 heightmap = pb.Image("assets/heightmap.jpeg")
 
 ground = pb.Grid(width=700, height=700, material=pb.Material(color="#DDDDDD", roughness=0.9))
-pb.Displacement(ground, heightmap, strength=0.3)
+ground.add_displacement(heightmap, strength=0.3)
 
 slab_location = (-0.1, 0, 0.03)
 slab = pb.Cube(location=slab_location, scale=(0.15, 0.3, 0.01),

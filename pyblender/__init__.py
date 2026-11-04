@@ -1,4 +1,4 @@
-"""pyblender: a small declarative layer over ``bpy`` to script Blender scenes.
+"""pyblender: a declarative layer over ``bpy`` to script Blender scenes and motion graphics.
 
 Importing the package inside Blender resets it to an empty scene, so a script run with
 ``blender -b --python my_scene.py`` only contains what it creates.
@@ -17,25 +17,28 @@ __all__ = ["reset"]
 if bpy is not None:
     from .base import Empty
     from .camera import Camera
-    from .force import Turbulence, Vortex
-    from .image import Image
-    from .light import PointLight, SpotLight, Sun
-    from .material import Material, NodeMaterial, VolumeMaterial
-    from .mesh import Cube, Cylinder, Grid, IcoSphere, Line, Plane, Sphere
-    from .modifier import Displacement, Subdivision
+    from .curve import Bezier, BezierCircle
+    from .force import ForceField, Turbulence, Vortex, Wind
+    from .geometry import Geometry
+    from .light import AreaLight, PointLight, SpotLight, Sun
+    from .material import (DiffuseMaterial, EmissionMaterial, Material, NodeMaterial,
+                           RefractionMaterial, VolumeMaterial)
+    from .mesh import (Box, Circle, Cone, Cube, Cylinder, Grid, IcoSphere, Line, Mesh, Model,
+                       Plane, Sphere, Torus, UVSphere, merge)
     from .particles import ParticleSystem
     from .post import PostProcess
     from .scene import Scene
     from .text import Text
+    from .texture import Image, Noise, Texture
     from .utils import hex_to_rgb, hex_to_rgba
 
     __all__ += [
-        "Camera", "Cube", "Cylinder", "Displacement", "Empty", "Grid", "IcoSphere", "Image",
-        "Line", "Material", "NodeMaterial", "ParticleSystem", "Plane", "PointLight", "PostProcess",
-        "Scene",
-        "Sphere", "SpotLight", "Subdivision", "Sun", "Text", "Turbulence", "VolumeMaterial",
-        "Vortex",
-        "hex_to_rgb", "hex_to_rgba",
+        "AreaLight", "Bezier", "BezierCircle", "Box", "Camera", "Circle", "Cone", "Cube",
+        "Cylinder", "DiffuseMaterial", "EmissionMaterial", "Empty", "ForceField", "Geometry",
+        "Grid", "IcoSphere", "Image", "Line", "Material", "Mesh", "Model", "NodeMaterial", "Noise",
+        "ParticleSystem", "Plane", "PointLight", "PostProcess", "RefractionMaterial", "Scene",
+        "Sphere", "SpotLight", "Sun", "Text", "Texture", "Torus", "Turbulence", "UVSphere",
+        "VolumeMaterial", "Vortex", "Wind", "hex_to_rgb", "hex_to_rgba", "merge",
     ]
 
 

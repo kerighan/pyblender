@@ -15,6 +15,9 @@ with the usual ``(values, frames)`` convention::
 import bpy
 import numpy as np
 
+from .nodes import Node, NodeTree
+from .texture import Image, Noise, Texture
+
 __all__ = ["PostProcess", "Effect"]
 
 
@@ -75,20 +78,38 @@ def _prop(node, name, transform=_identity):
     return (node, name, -1, transform)
 
 
-class PostProcess:
-    """A stack of compositor effects applied to the final image. Access it via ``Scene.post``."""
+class PostProcess(NodeTree):
+    """A stack of compositor effects applied to the final image. Access it via ``Scene.post``.
+
+    High-level effects (``vignette``, ``glitch``…) chain themselves between the render
+    and the output. ``input`` (Render Layers) and ``output`` (Composite) are also exposed
+    with the ``create_*`` helpers for hand-built graphs:
+    ``post.input.image >> glare >> post.output``.
+    """
+
+    _math = "CompositorNodeMath"
+    _value = "CompositorNodeValue"
+    _mix_rgb = "CompositorNodeMixRGB"
+    _color_ramp = "CompositorNodeValToRGB"
+    _map_range = "CompositorNodeMapRange"
+    _separate_xyz = "CompositorNodeSepRGBA"
+    _combine_xyz = "CompositorNodeCombRGBA"
+    _rgb = "CompositorNodeRGB"
 
     def __init__(self, scene):
         scene.use_nodes = True
         scene.render.use_compositing = True
+        self.scene = scene
         self.tree = scene.node_tree
         self.nodes = self.tree.nodes
         self.links = self.tree.links
         self.nodes.clear()
         self.render_layers = self.nodes.new("CompositorNodeRLayers")
         self.composite = self.nodes.new("CompositorNodeComposite")
-        self.output = self.render_layers.outputs["Image"]
-        self.links.new(self.output, self.composite.inputs["Image"])
+        self.input = Node(self.render_layers, self)
+        self.output = Node(self.composite, self)
+        self.current = self.render_layers.outputs["Image"]
+        self.links.new(self.current, self.composite.inputs["Image"])
         self.effects = []
         self._textures = 0
 
@@ -97,16 +118,13 @@ class PostProcess:
     # ------------------------------------------------------------------
 
     def _node(self, node_type, **props):
-        node = self.nodes.new(node_type)
-        for key, value in props.items():
-            setattr(node, key, value)
-        return node
+        return self.create(node_type, **props).node
 
     def _chain(self, node, input="Image", output="Image"):
-        """Insert ``node`` at the end of the stack."""
-        self.links.new(self.output, node.inputs[input])
-        self.output = node.outputs[output]
-        self.links.new(self.output, self.composite.inputs["Image"])
+        """Insert ``node`` at the end of the effect stack."""
+        self.links.new(self.current, node.inputs[input])
+        self.current = node.outputs[output]
+        self.links.new(self.current, self.composite.inputs["Image"])
         return node
 
     def _register(self, name, params):
@@ -133,13 +151,76 @@ class PostProcess:
         return mix
 
     # ------------------------------------------------------------------
+    # Low-level nodes, for hand-built graphs
+    # ------------------------------------------------------------------
+
+    def create_glare(self, kind="FOG_GLOW", threshold=1.0, mix=0.0, size=8, fade=0.9, streaks=4,
+                     quality="HIGH"):
+        return self.create("CompositorNodeGlare", glare_type=kind, threshold=threshold, mix=mix,
+                           size=size, fade=fade, streaks=streaks, quality=quality)
+
+    def create_lens_distortion(self, distortion=0.0, dispersion=0.0):
+        node = self.create("CompositorNodeLensdist", use_fit=True)
+        node["Distort"] = distortion
+        node["Dispersion"] = dispersion
+        return node
+
+    def create_color_correction(self, saturation=1.0, contrast=1.0, gain=1.0, gamma=1.0, lift=0.0):
+        return self.create("CompositorNodeColorCorrection", master_saturation=saturation,
+                           master_contrast=contrast, master_gain=gain, master_gamma=gamma,
+                           master_lift=lift)
+
+    def create_sun_beams(self, length=0.2, source=(0.5, 0.5)):
+        return self.create("CompositorNodeSunBeams", ray_length=length, source=source)
+
+    def create_blur(self, size=10, kind="FAST_GAUSS"):
+        return self.create("CompositorNodeBlur", size_x=size, size_y=size, filter_type=kind)
+
+    def create_image(self, image):
+        node = self.create("CompositorNodeImage")
+        node.node.image = (image if isinstance(image, Image) else Image(image)).img
+        return node
+
+    def create_texture(self, texture):
+        """A Texture node from a :class:`~pyblender.texture.Texture`, :class:`Noise` or path."""
+        if isinstance(texture, str):
+            texture = Texture(texture)
+        node = self.create("CompositorNodeTexture")
+        node.node.texture = texture.texture if isinstance(texture, (Texture, Noise)) else texture
+        return node
+
+    def create_hue_saturation(self, hue=0.5, saturation=1.0, value=1.0):
+        node = self.create("CompositorNodeHueSat")
+        node["Hue"] = hue
+        node["Saturation"] = saturation
+        node["Value"] = value
+        return node
+
+    def create_translate(self, x=0.0, y=0.0, wrap="BOTH"):
+        node = self.create("CompositorNodeTranslate", wrap_axis=wrap)
+        node["X"] = x
+        node["Y"] = y
+        return node
+
+    def create_displace(self):
+        return self.create("CompositorNodeDisplace")
+
+    def create_ellipse_mask(self, width=0.5, height=0.5, x=0.5, y=0.5):
+        return self.create("CompositorNodeEllipseMask", width=width, height=height, x=x, y=y)
+
+    def chain(self, node, input="Image", output="Image"):
+        """Insert a hand-made node (or chain of nodes) into the effect stack."""
+        self._chain(node.node if isinstance(node, Node) else node, input, output)
+        return node
+
+    # ------------------------------------------------------------------
     # Effects
     # ------------------------------------------------------------------
 
     def rgb_split(self, x=0.0, y=0.0):
         """Shift the red and blue channels in opposite directions. ``x``, ``y`` in pixels."""
         separate = self._node("CompositorNodeSepRGBA")
-        self.links.new(self.output, separate.inputs["Image"])
+        self.links.new(self.current, separate.inputs["Image"])
         red = self._node("CompositorNodeTranslate", wrap_axis="BOTH")
         blue = self._node("CompositorNodeTranslate", wrap_axis="BOTH")
         combine = self._node("CompositorNodeCombRGBA")
@@ -149,8 +230,8 @@ class PostProcess:
         self.links.new(separate.outputs["G"], combine.inputs["G"])
         self.links.new(blue.outputs["Image"], combine.inputs["B"])
         self.links.new(separate.outputs["A"], combine.inputs["A"])
-        self.output = combine.outputs["Image"]
-        self.links.new(self.output, self.composite.inputs["Image"])
+        self.current = combine.outputs["Image"]
+        self.links.new(self.current, self.composite.inputs["Image"])
         effect = self._register("rgb_split", {
             "x": [_socket(red, "X"), _socket(blue, "X", _negate)],
             "y": [_socket(red, "Y"), _socket(blue, "Y", _negate)],
@@ -177,7 +258,7 @@ class PostProcess:
         self.links.new(bands.outputs["Value"], gate.inputs[0])
 
         shifted = self._node("CompositorNodeTranslate", wrap_axis="BOTH")
-        self.links.new(self.output, shifted.inputs["Image"])
+        self.links.new(self.current, shifted.inputs["Image"])
         mix = self._node("CompositorNodeMixRGB", blend_type="MIX")
         self.links.new(gate.outputs["Value"], mix.inputs["Fac"])
         self.links.new(shifted.outputs["Image"], mix.inputs[2])
@@ -235,6 +316,14 @@ class PostProcess:
                                           "saturation": [_socket(node, "Saturation")],
                                           "value": [_socket(node, "Value")]})
         return effect.set("hue", hue).set("saturation", saturation).set("value", value)
+
+    def color_correction(self, saturation=1.0, contrast=1.0, gain=1.0, gamma=1.0, lift=0.0):
+        """Master saturation, contrast, gain, gamma and lift."""
+        node = self.create_color_correction(saturation, contrast, gain, gamma, lift).node
+        self._chain(node)
+        return self._register("color_correction", {
+            name: [_prop(node, f"master_{name}")]
+            for name in ("saturation", "contrast", "gain", "gamma", "lift")})
 
     def exposure(self, stops=0.0):
         """Exposure in stops, handy for flickers."""

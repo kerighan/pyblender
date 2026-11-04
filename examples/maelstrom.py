@@ -24,7 +24,7 @@ for arm in np.linspace(0, 2 * np.pi, N_ARMS, endpoint=False):
         phase = np.pi * i / N_ROWS
         cube = pb.Cube(size=1.5 * (radius / N_ROWS) ** 0.7, material=material)
         cube.animate_location(circle(radius, arm + phase), frames)
-        cube.animate_rotation_z(np.linspace(0, 4 * np.pi, N_FRAMES), frames)
+        cube.animate_rotation_z(np.linspace(0, 720, N_FRAMES), frames)
         cube.animate_scale_z([3 * (2 - np.cos(3 * phase - t))
                               for t in np.linspace(0, 4 * np.pi, N_FRAMES)], frames)
 

@@ -1,13 +1,12 @@
 """3D text, as a single object or split into letters or words for per-part animation."""
 
-import math
-
 import bpy
 
 from .base import BlenderObject, Empty, link_to_scene
 from .mesh import Mesh
+from .utils import to_radians
 
-UPRIGHT = (math.pi / 2, 0, 0)  # text standing in the XZ plane, readable from -Y
+UPRIGHT = (90, 0, 0)  # text standing in the XZ plane, readable from -Y
 
 
 def load_font(path):
@@ -39,7 +38,7 @@ class TextObject(Mesh):
         self.curve = curve
         self.obj = link_to_scene(bpy.data.objects.new(name, curve))
         self.obj.location = location
-        self.obj.rotation_euler = rotation
+        self.obj.rotation_euler = to_radians(rotation)
         self._setup(material, visible)
 
     @property
@@ -67,9 +66,9 @@ class Text(BlenderObject):
         bevel: rounding of the edges.
         font: path to a ``.ttf``/``.otf`` file, defaults to Blender's built-in font.
         material: a :class:`~pyblender.material.Material`.
-        location, rotation: placement of the whole text. The origin is at the baseline.
+        location, rotation: placement of the whole text (degrees). The origin is at the baseline.
         upright: when ``rotation`` is not given, stand the text up so it faces a camera
-            placed on -Y (``rotation=(pi/2, 0, 0)``). Otherwise the text lies flat on XY.
+            placed on -Y (``rotation=(90, 0, 0)`` degrees). Otherwise the text lies flat on XY.
         align: ``"left"``, ``"center"`` or ``"right"``, relative to the origin.
         tracking: extra spacing between letters, as a fraction of ``size``.
         split: ``None`` for a single object, ``"letters"`` or ``"words"`` to create one object
@@ -101,7 +100,7 @@ class Text(BlenderObject):
         if "\n" in body:
             raise ValueError("split text supports a single line")
         group = Empty(location, name="text")
-        group.obj.rotation_euler = rotation
+        group.obj.rotation_euler = to_radians(rotation)
         group.set_visible(visible)
         self.obj = group.obj
         self.parts = self._build_parts(body, align, **style)
