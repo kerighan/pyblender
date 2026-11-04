@@ -6,21 +6,8 @@ import warnings
 
 import bpy
 
+from .timing import defaults, to_frames
 from .utils import to_rgba
-
-
-class Defaults:
-    """Package-wide render defaults, editable: ``pb.defaults.engine = "cycles"``."""
-
-    size = (1280, 720)
-    engine = "eevee"      # "eevee" or "cycles"
-    samples = None        # None keeps Blender's defaults
-    frame_rate = 30
-    crf = 18
-    gpu = True
-
-
-defaults = Defaults()
 
 ENGINES = {"eevee": "BLENDER_EEVEE", "cycles": "CYCLES"}
 
@@ -49,11 +36,11 @@ class Scene:
         engine: ``"eevee"`` (fast) or ``"cycles"`` (path tracing). ``fast=False`` and
             ``cycles=True`` are accepted too.
         samples: render samples, ``None`` keeps Blender's defaults.
-        frames: number of frames of the animation (``frames=120`` renders 0..119).
+        duration: length of the animation in seconds (``frames`` for a raw frame count).
     """
 
-    def __init__(self, camera=None, size=None, engine=None, samples=None, frames=None,
-                 fast=None, cycles=None):
+    def __init__(self, camera=None, size=None, engine=None, samples=None, duration=None,
+                 frames=None, fast=None, cycles=None):
         self.scene = bpy.context.scene
         if camera is not None:
             self.scene.camera = camera.obj
@@ -63,7 +50,9 @@ class Scene:
         self.samples = defaults.samples if samples is None else samples
         self.animation = False
         self._post = None
-        if frames is not None:
+        if duration is not None:
+            self.duration = duration
+        elif frames is not None:
             self.frames = frames
 
     @property
@@ -82,6 +71,15 @@ class Scene:
     @frames.setter
     def frames(self, count):
         self.set_animation_bounds(0, int(count) - 1)
+
+    @property
+    def duration(self):
+        """Length of the animation in seconds (at ``defaults.fps``)."""
+        return self.frames / defaults.fps
+
+    @duration.setter
+    def duration(self, seconds):
+        self.frames = to_frames(seconds)
 
     def set(self, **properties):
         """Set any property of the Blender scene, its render, Eevee or Cycles settings:
@@ -248,7 +246,8 @@ class Scene:
     # ------------------------------------------------------------------
 
     def render(self, filename, size=None, engine=None, gpu=None, samples=None, frame_rate=None,
-               crf=None, frame=None, frames=None, bake=False, fast=None, cycles=None):
+               crf=None, frame=None, duration=None, frames=None, bake=False, fast=None,
+               cycles=None):
         """Render to ``filename``.
 
         * ``.png`` renders a still image, or the animation as ``0001.png``…
@@ -261,7 +260,7 @@ class Scene:
             gpu: use the GPU for Cycles.
             frame_rate, crf: video frame rate and quality (lower crf = better).
             frame: render this frame (stills only).
-            frames: number of frames to render (animation ``0..frames-1``).
+            duration: length of the animation in seconds; ``frames`` is the raw count.
             bake: bake physics caches first.
         """
         if fast is not None or cycles is not None or engine is not None:
@@ -270,9 +269,11 @@ class Scene:
         size = self.size if size is None else size
         samples = self.samples if samples is None else samples
         gpu = defaults.gpu if gpu is None else gpu
-        frame_rate = defaults.frame_rate if frame_rate is None else frame_rate
+        frame_rate = defaults.fps if frame_rate is None else frame_rate
         crf = defaults.crf if crf is None else crf
-        if frames is not None:
+        if duration is not None:
+            self.duration = duration
+        elif frames is not None:
             self.frames = frames
 
         render = self.scene.render

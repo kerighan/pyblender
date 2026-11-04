@@ -17,6 +17,7 @@ import numpy as np
 
 from .nodes import Node, NodeTree
 from .texture import Image, Noise, Texture
+from .timing import to_frames
 
 __all__ = ["PostProcess", "Effect"]
 
@@ -52,11 +53,12 @@ class Effect:
         return self
 
     def burst(self, name, bursts, low=0.0, high=1.0, seed=0, rest=0.0):
-        """Random values in ``[low, high]`` on every frame of each ``(start, end)`` burst,
-        ``rest`` elsewhere."""
+        """Random values in ``[low, high]`` on every frame of each ``(start, end)`` burst
+        (seconds), ``rest`` elsewhere."""
         rng = np.random.default_rng(seed)
         values, frames = [], []
         for start, end in bursts:
+            start, end = to_frames(start), to_frames(end)
             frames += [start - 1] + list(range(start, end + 1)) + [end + 1]
             values += [rest] + list(rng.uniform(low, high, end - start + 1)) + [rest]
         return self.animate(name, values, frames)
@@ -351,7 +353,7 @@ class PostProcess(NodeTree):
     # ------------------------------------------------------------------
 
     def glitch(self, bursts, strength=1.0, seed=0):
-        """Sci-fi screen glitch during each ``(start, end)`` frame range of ``bursts``.
+        """Sci-fi screen glitch during each ``(start, end)`` time range (seconds) of ``bursts``.
 
         Random RGB split, sliced displacement, grain and a brightness flicker on every
         frame of a burst, nothing outside. ``strength`` scales the amplitude.

@@ -9,6 +9,7 @@ import bpy
 import numpy as np
 
 from .animation.easing import EASINGS
+from .timing import frames, to_frames, to_seconds
 from .utils import look_at, to_degrees, to_radians
 
 
@@ -40,7 +41,10 @@ def _as_array(value, like=None):
 
 
 class Tweenable:
-    """Mixin: ``to()``, ``from_()`` and ``wait()`` with a per-object playhead."""
+    """Mixin: ``to()``, ``from_()`` and ``wait()`` with a per-object playhead.
+
+    Times are in seconds (see :mod:`pyblender.timing`); the playhead is kept in frames.
+    """
 
     _cursor = 0
     _last_start = 0
@@ -54,10 +58,11 @@ class Tweenable:
             return self._cursor
         if start == "<":
             return self._last_start
-        return int(start)
+        return to_frames(start)
 
     def _tween(self, props, duration, easing, start, reverse=False):
         start = self._start_frame(start)
+        duration = to_frames(duration)
         frames = range(start, start + duration + 1)
         progress = np.asarray(EASINGS[easing](np.linspace(0, 1, duration + 1)), dtype=float)
         for name, target in props.items():
@@ -77,36 +82,41 @@ class Tweenable:
         self._cursor = start + duration
         return self
 
-    def to(self, duration=20, easing="cubic-out", start=None, **props):
+    def to(self, duration=0.6, easing="cubic-out", start=None, **props):
         """Tween properties from their current value to the given ones, then advance the
-        playhead. ``start``: a frame, ``None`` for the playhead, ``"<"`` to run in parallel
-        with the previous tween.
+        playhead. Times are in seconds. ``start``: a time, ``None`` for the playhead,
+        ``"<"`` to run in parallel with the previous tween.
 
         ::
 
-            cube.to(location=(0, 0, 2), duration=30, easing="back-out")
-            cube.to(rotation=(0, 0, 180), scale=0.5, duration=20)      # chained after
-            light.to(energy=0, duration=60)                             # any property
+            cube.to(location=(0, 0, 2), duration=1, easing="back-out")
+            cube.to(rotation=(0, 0, 180), scale=0.5, duration=0.5)    # chained after
+            light.to(energy=0, duration=2)                              # any property
         """
         return self._tween(props, duration, easing, start)
 
-    def from_(self, duration=20, easing="cubic-out", start=None, **props):
+    def from_(self, duration=0.6, easing="cubic-out", start=None, **props):
         """Tween properties from the given values to their current ones (an entrance)."""
         return self._tween(props, duration, easing, start, reverse=True)
 
-    def wait(self, frames):
+    def wait(self, seconds):
         """Advance the playhead without animating."""
-        self._cursor += int(frames)
+        self._cursor += to_frames(seconds)
         return self
 
     @property
     def cursor(self):
-        """The playhead: the frame where the next tween starts."""
-        return self._cursor
+        """The playhead in seconds: where the next tween starts."""
+        return to_seconds(self._cursor)
 
     @cursor.setter
-    def cursor(self, frame):
-        self._cursor = int(frame)
+    def cursor(self, seconds):
+        self._cursor = to_frames(seconds)
+
+    @property
+    def cursor_frame(self):
+        """The playhead as a frame number."""
+        return self._cursor
 
 
 class BlenderObject(Tweenable):
@@ -217,12 +227,14 @@ class BlenderObject(Tweenable):
         self.obj.hide_render = not visible
         return self
 
-    def hide_until(self, frame):
-        """Keep the object hidden before ``frame``."""
+    def hide_until(self, time):
+        """Keep the object hidden before ``time`` (seconds)."""
+        frame = to_frames(time)
         return self.animate_visibility([False, True], [frame - 1, frame])
 
-    def hide_from(self, frame):
-        """Hide the object from ``frame`` on."""
+    def hide_from(self, time):
+        """Hide the object from ``time`` (seconds) on."""
+        frame = to_frames(time)
         return self.animate_visibility([True, False], [frame, frame + 1])
 
     def set_ray_visibility(self, camera=True, diffuse=True, glossy=True, transmission=True,
@@ -406,26 +418,26 @@ class Group(Tweenable):
         return members[::-1] if reverse else members
 
     def _group_tween(self, method, props, duration, easing, start, stagger, reverse):
-        start = self._start_frame(start)
+        start, duration, stagger = self._start_frame(start), to_frames(duration), to_frames(stagger)
         for order, (index, member) in enumerate(self._ordered(reverse)):
             values = {k: v(index, member) if callable(v) else v for k, v in props.items()}
-            getattr(member, method)(duration=duration, easing=easing,
-                                    start=start + order * stagger, **values)
+            getattr(member, method)(duration=frames(duration), easing=easing,
+                                    start=frames(start + order * stagger), **values)
         self._last_start = start
         self._cursor = start + duration + stagger * max(len(self.members) - 1, 0)
         return self
 
-    def to(self, duration=20, easing="cubic-out", start=None, stagger=0, reverse=False, **props):
-        """Tween every member, each one delayed by ``stagger`` frames from the previous."""
+    def to(self, duration=0.6, easing="cubic-out", start=None, stagger=0, reverse=False, **props):
+        """Tween every member, each one delayed by ``stagger`` seconds from the previous."""
         return self._group_tween("to", props, duration, easing, start, stagger, reverse)
 
-    def from_(self, duration=20, easing="cubic-out", start=None, stagger=0, reverse=False,
+    def from_(self, duration=0.6, easing="cubic-out", start=None, stagger=0, reverse=False,
               **props):
         return self._group_tween("from_", props, duration, easing, start, stagger, reverse)
 
     def _each_frames(self, start, duration, stagger, reverse):
-        """Yield ``(index, member, first_frame)`` for staggered motions."""
-        start = self._start_frame(start)
+        """Yield ``(index, member, first_frame)`` for staggered motions (frames)."""
+        start, duration, stagger = self._start_frame(start), to_frames(duration), to_frames(stagger)
         for order, (index, member) in enumerate(self._ordered(reverse)):
             yield index, member, start + order * stagger
         self._last_start = start
@@ -435,91 +447,96 @@ class Group(Tweenable):
     # Motions
     # ------------------------------------------------------------------
 
-    def pop_in(self, duration=15, stagger=2, easing="back-out", start=None, scale_from=0.0,
+    def pop_in(self, duration=0.5, stagger=0.08, easing="back-out", start=None, scale_from=0.0,
                reverse=False):
         """Scale each part up from ``scale_from``. Parts are invisible before."""
         return self.from_(duration, easing, start, stagger, reverse,
                           scale=lambda i, m: np.array(m.obj.scale) * scale_from)
 
-    def pop_out(self, duration=15, stagger=2, easing="back-in", start=None, scale_to=0.0,
+    def pop_out(self, duration=0.5, stagger=0.08, easing="back-in", start=None, scale_to=0.0,
                 reverse=False):
         """Scale each part down to ``scale_to``, then hide it."""
         for index, member, first in self._each_frames(start, duration, stagger, reverse):
-            member.to(duration, easing, first, scale=np.array(member.obj.scale) * scale_to)
-            member.hide_from(first + duration)
+            member.to(duration, easing, frames(first), scale=np.array(member.obj.scale) * scale_to)
+            member.hide_from(frames(member._cursor))
         return self
 
-    def slide_in(self, offset=(0, -1, 0), duration=20, stagger=2, easing="cubic-out", start=None,
-                 reverse=False):
+    def slide_in(self, offset=(0, -1, 0), duration=0.6, stagger=0.08, easing="cubic-out",
+                 start=None, reverse=False):
         """Move each part from ``current + offset`` to its place. Parts are hidden before.
 
         For an upright text the local Y axis points up: ``offset=(0, -1, 0)`` rises from below.
         """
         offset = np.asarray(offset, dtype=float)
         for index, member, first in self._each_frames(start, duration, stagger, reverse):
-            member.from_(duration, easing, first, location=np.array(member.obj.location) + offset)
-            member.hide_until(first)
+            member.from_(duration, easing, frames(first),
+                         location=np.array(member.obj.location) + offset)
+            member.hide_until(frames(first))
         return self
 
-    def slide_out(self, offset=(0, 1, 0), duration=20, stagger=2, easing="cubic-in", start=None,
-                  reverse=False):
+    def slide_out(self, offset=(0, 1, 0), duration=0.6, stagger=0.08, easing="cubic-in",
+                  start=None, reverse=False):
         """Move each part by ``offset``, then hide it."""
         offset = np.asarray(offset, dtype=float)
         for index, member, first in self._each_frames(start, duration, stagger, reverse):
-            member.to(duration, easing, first, location=np.array(member.obj.location) + offset)
-            member.hide_from(first + duration)
+            member.to(duration, easing, frames(first),
+                      location=np.array(member.obj.location) + offset)
+            member.hide_from(frames(member._cursor))
         return self
 
-    def flip_in(self, angle=(90, 0, 0), duration=20, stagger=2, easing="back-out", start=None,
-                reverse=False):
+    def flip_in(self, angle=(90, 0, 0), duration=0.6, stagger=0.08, easing="back-out",
+                start=None, reverse=False):
         """Rotate each part from ``current + angle`` (degrees) to its place. Hidden before."""
         angle = np.asarray(angle, dtype=float)
         for index, member, first in self._each_frames(start, duration, stagger, reverse):
-            member.from_(duration, easing, first, rotation=np.array(member.rotation) + angle)
-            member.hide_until(first)
+            member.from_(duration, easing, frames(first),
+                         rotation=np.array(member.rotation) + angle)
+            member.hide_until(frames(first))
         return self
 
-    def flip_out(self, angle=(-90, 0, 0), duration=20, stagger=2, easing="back-in", start=None,
-                 reverse=False):
+    def flip_out(self, angle=(-90, 0, 0), duration=0.6, stagger=0.08, easing="back-in",
+                 start=None, reverse=False):
         """Rotate each part by ``angle`` (degrees), then hide it."""
         angle = np.asarray(angle, dtype=float)
         for index, member, first in self._each_frames(start, duration, stagger, reverse):
-            member.to(duration, easing, first, rotation=np.array(member.rotation) + angle)
-            member.hide_from(first + duration)
+            member.to(duration, easing, frames(first), rotation=np.array(member.rotation) + angle)
+            member.hide_from(frames(member._cursor))
         return self
 
-    def typewriter(self, stagger=3, start=None, reverse=False):
+    def typewriter(self, stagger=0.1, start=None, reverse=False):
         """Make parts appear one after the other, without any transition."""
-        for index, member, first in self._each_frames(start, 1, stagger, reverse):
-            member.hide_until(first)
+        for index, member, first in self._each_frames(start, frames(1), stagger, reverse):
+            member.hide_until(frames(first))
         return self
 
-    def wave(self, duration=60, amplitude=0.2, period=30, phase=0.6, axis=1, start=None):
+    def _continuous(self, start, duration):
+        start, duration = self._start_frame(start), to_frames(duration)
+        self._last_start, self._cursor = start, start + duration
+        return start, range(start, start + duration + 1)
+
+    def wave(self, duration=2.0, amplitude=0.2, period=1.0, phase=0.6, axis=1, start=None):
         """Oscillate the parts along ``axis`` (0=X, 1=Y, 2=Z, parent space), each one
-        lagging the previous by ``phase`` radians. ``period`` is in frames."""
-        start = self._start_frame(start)
-        frames = range(start, start + duration + 1)
-        t = np.arange(len(frames))
+        lagging the previous by ``phase`` radians. ``period`` is in seconds."""
+        start, frame_range = self._continuous(start, duration)
+        t = np.arange(len(frame_range))
+        period = to_frames(period)
         for index, member in enumerate(self.members):
             base = np.array(member.obj.location)
-            values = np.repeat(base[None, :], len(frames), axis=0)
+            values = np.repeat(base[None, :], len(frame_range), axis=0)
             values[:, axis] += amplitude * np.sin(2 * np.pi * t / period - index * phase)
-            member.animate_location(values, frames)
-            member._cursor = start + duration
-        self._last_start, self._cursor = start, start + duration
+            member.animate_location(values, frame_range)
+            member._cursor = self._cursor
         return self
 
-    def shake(self, duration=30, amplitude=0.05, seed=0, start=None):
+    def shake(self, duration=1.0, amplitude=0.05, seed=0, start=None):
         """Random jitter of each part's location, decaying to rest."""
         rng = np.random.default_rng(seed)
-        start = self._start_frame(start)
-        frames = range(start, start + duration + 1)
-        decay = np.linspace(1, 0, len(frames))
+        start, frame_range = self._continuous(start, duration)
+        decay = np.linspace(1, 0, len(frame_range))
         for member in self.members:
             base = np.array(member.obj.location)
-            jitter = rng.uniform(-1, 1, (len(frames), 3)) * amplitude * decay[:, None]
+            jitter = rng.uniform(-1, 1, (len(frame_range), 3)) * amplitude * decay[:, None]
             jitter[-1] = 0
-            member.animate_location(base[None, :] + jitter, frames)
-            member._cursor = start + duration
-        self._last_start, self._cursor = start, start + duration
+            member.animate_location(base[None, :] + jitter, frame_range)
+            member._cursor = self._cursor
         return self

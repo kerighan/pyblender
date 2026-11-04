@@ -17,6 +17,7 @@ Without an explicit socket, ``>>`` uses the first output and the first input, so
 import numpy as np
 
 from .animation.easing import EASINGS
+from .timing import to_frames
 from .utils import to_rgba
 
 _PRIVATE = {"node", "tree"}
@@ -125,12 +126,12 @@ class Node:
         object.__setattr__(self, "_socket", None)
         return socket
 
-    def to(self, target, duration=20, easing="cubic-out", start=None):
+    def to(self, target, duration=0.6, easing="cubic-out", start=None):
         """With a node: link the selected output to its selected input (same as ``>>``).
         With a value: tween the selected input socket to it, like objects do::
 
-            noise.fac >> ramp.fac            # link
-            mat.bsdf.roughness.to(1, 30)     # tween over 30 frames
+            noise.fac >> ramp.fac              # link
+            mat.bsdf.roughness.to(1, 0.5)      # tween over half a second
         """
         if not isinstance(target, Node):
             return self.tween(target, duration, easing, start)
@@ -141,11 +142,13 @@ class Node:
         self.tree.link(self, 0 if output is None else output, target, 0 if inp is None else inp)
         return target
 
-    def tween(self, value, duration=20, easing="cubic-out", start=None, socket=None):
-        """Tween the selected (or named) input socket from its current value to ``value``."""
+    def tween(self, value, duration=0.6, easing="cubic-out", start=None, socket=None):
+        """Tween the selected (or named) input socket from its current value to ``value``.
+        Times in seconds."""
         socket = self._take() if socket is None else socket
         target = self.input(socket)
-        start = self._cursor if start is None else int(start)
+        start = self._cursor if start is None else to_frames(start)
+        duration = to_frames(duration)
         current = target.default_value
         current = np.asarray(tuple(current) if hasattr(current, "__len__") else current, float)
         value = np.asarray(_coerce(target, value), dtype=float)
@@ -158,8 +161,8 @@ class Node:
         object.__setattr__(self, "_cursor", start + duration)
         return self
 
-    def wait(self, frames):
-        object.__setattr__(self, "_cursor", self._cursor + int(frames))
+    def wait(self, seconds):
+        object.__setattr__(self, "_cursor", self._cursor + to_frames(seconds))
         return self
 
     def __rshift__(self, target):

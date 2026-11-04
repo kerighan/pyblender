@@ -18,4 +18,4 @@ pb.AreaLight((-6, -6, 6), energy=800, size=(4, 4), target=(0, 0, 0))
 pb.Camera((11, -11, 7), target=(0, 0, 1), lens=45, focus=True, aperture_fstop=4)
 
 pb.scene().set_background("#B9C6D2", strength=0.6)
-pb.render("renders/falling_cubes.mp4", frames=120, bake=True, size=(1280, 720), samples=32)
+pb.render("renders/falling_cubes.mp4", duration=4, bake=True, size=(1280, 720), samples=32)

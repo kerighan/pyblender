@@ -28,7 +28,8 @@ if bpy is not None:
     from .particles import ParticleSystem
     from .post import PostProcess
     from .quick import auto_camera, auto_light, post, render, scene
-    from .scene import Scene, defaults
+    from .scene import Scene
+    from .timing import defaults, frames, to_frames, to_seconds
     from .text import Text
     from .texture import Image, Noise, Texture
     from .utils import hex_to_rgb, hex_to_rgba
@@ -40,7 +41,8 @@ if bpy is not None:
         "NodeMaterial", "Noise", "ParticleSystem", "Plane", "PointLight", "PostProcess",
         "RefractionMaterial", "Scene", "Sphere", "SpotLight", "Sun", "Text", "Texture", "Torus",
         "Turbulence", "UVSphere", "VolumeMaterial", "Vortex", "Wind", "auto_camera",
-        "auto_light", "defaults", "hex_to_rgb", "hex_to_rgba", "merge", "post", "render", "scene",
+        "auto_light", "defaults", "frames", "hex_to_rgb", "hex_to_rgba", "merge", "post", "render",
+        "scene", "to_frames", "to_seconds",
     ]
 
 

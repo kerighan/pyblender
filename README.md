@@ -10,13 +10,13 @@ grain) and PNG / MP4 export, without touching the Blender UI.
 import pyblender as pb
 
 title = pb.Text("HELLO", size=1.2, extrude=0.2, bevel=0.02, split="letters", material="#F7F7F2")
-title.parts.pop_in(stagger=3).wait(40).wave(duration=40).pop_out(stagger=2, reverse=True)
+title.parts.pop_in(stagger=0.1).wait(1).wave(duration=1.5).pop_out(stagger=0.07, reverse=True)
 
 cube = pb.Cube(location=(0, 0, -1.5), material=pb.Material(color="#FF5500", roughness=0.3))
-cube.to(rotation=(0, 0, 360), duration=100, easing="linear")
+cube.to(rotation=(0, 0, 360), duration=4, easing="linear")
 
-pb.post.vignette(0.4).glitch(bursts=[(40, 48)])
-pb.render("hello.mp4", frames=120)          # auto camera and light, Eevee, 1280x720
+pb.post.vignette(0.4).glitch(bursts=[(1.3, 1.6)])
+pb.render("hello.mp4", duration=4)          # auto camera and light, Eevee, 1280x720, 30 fps
 ```
 
 ```bash
@@ -103,8 +103,12 @@ available as `.obj` and shares one base API:
 | `animate_location / rotation / scale / visibility(values, frames)`, `animate(attr, values, frames)` | raw keyframes |
 | `set_interpolation("LINEAR", extrapolation="LINEAR")`, `repeat_animation(count)` | fcurve tweaks |
 
-**Degrees.** Every rotation (`rotation=`, `rotate()`, tweens, motions, spot `angle`) is
-in degrees.
+**Degrees and seconds.** Every rotation (`rotation=`, `rotate()`, tweens, motions, spot
+`angle`) is in degrees. Every time of the high-level API (tween `duration`, `start`,
+`stagger`, `wait`, motions, bursts, `render(duration=)`) is in **seconds**, converted
+with `pb.defaults.fps` (30): changing the frame rate keeps animations the same length.
+`pb.frames(15)` forces an exact frame count. Only the raw `animate_*` methods and
+`Timeline` work in frames.
 
 **Nodes.** Materials, geometry nodes and the compositor share one idiom: sockets are
 attributes, `>>` links, arithmetic creates Math nodes, `.to(value)` tweens a socket.
@@ -126,10 +130,11 @@ is named.
 
 | Helper | Description |
 |---|---|
-| `pb.render(filename, **render_kwargs)` | Render the default scene. Adds a camera framing every object (`auto_camera`) and a soft sun (`auto_light`) when the scene has none. `frames=120` renders an animation. |
+| `pb.render(filename, **render_kwargs)` | Render the default scene. Adds a camera framing every object (`auto_camera`) and a soft sun (`auto_light`) when the scene has none. `duration=4` renders a 4-second animation. |
 | `pb.scene()` | The default `Scene`, created on first use. `pb.scene().add_bloom()`, `pb.scene().set_background(...)`. |
 | `pb.post` | The post-processing stack of the default scene: `pb.post.vignette(0.4)`. |
-| `pb.defaults` | Package defaults: `size`, `engine` (`"eevee"` / `"cycles"`), `samples`, `frame_rate`, `crf`, `gpu`. |
+| `pb.defaults` | Package defaults: `size`, `engine` (`"eevee"` / `"cycles"`), `samples`, `fps`, `crf`, `gpu`. |
+| `pb.frames(n)`, `pb.to_frames(seconds)`, `pb.to_seconds(frames)` | Time conversions. |
 | `pb.auto_camera(direction=(0.6, -1, 0.5), lens=50)`, `pb.auto_light()` | The automatic camera and light, callable explicitly. |
 
 A `Camera` or `Scene` you create yourself is used instead of the automatic ones.
@@ -137,17 +142,17 @@ A `Camera` or `Scene` you create yourself is used instead of the automatic ones.
 ### Scene
 
 ```python
-scene = pb.Scene(camera=None, size=None, engine=None, samples=None, frames=None)
+scene = pb.Scene(camera=None, size=None, engine=None, samples=None, duration=None)
 ```
 
 Arguments fall back to `pb.defaults`. `engine` is `"eevee"` or `"cycles"`
-(`fast=False` / `cycles=True` are accepted too). `frames=120` sets the animation to
-frames `0..119`.
+(`fast=False` / `cycles=True` are accepted too). `duration=4` sets a 4-second animation
+(`frames=120` for a raw count).
 
 | Method | Description |
 |---|---|
-| `render(filename, size, engine, gpu, samples, frame_rate, crf, frame=None, frames=None, bake=False)` | `.png` still (or image sequence in `filename/` when it ends with `/`), `.mp4` animation encoded with ffmpeg. `frame` renders one frame, `bake` runs physics first. Returns the absolute path. |
-| `frames` | property: number of frames of the animation (`scene.frames = 120`). |
+| `render(filename, size, engine, gpu, samples, frame_rate, crf, frame=None, duration=None, frames=None, bake=False)` | `.png` still (or image sequence in `filename/` when it ends with `/`), `.mp4` animation encoded with ffmpeg. `frame` renders one frame, `bake` runs physics first. Returns the absolute path. |
+| `duration`, `frames` | properties: length of the animation in seconds / in frames. |
 | `set_animation_bounds(start, end)`, `set_frame(n)`, `set_gravity(...)` | |
 | `set(**props)` | any property of the scene, its render, Eevee, Cycles or view settings: `scene.set(frame_step=2, film_transparent=True)` |
 | `set_background(color, strength=1, image=None)` | world color or HDRI (lights the scene) |
@@ -167,7 +172,7 @@ pb.Camera(location=(0, 0, 0), target=None, rotation=(0, 0, 0), focus=None,
 
 `target` is a point or an object to look at. `focus` enables depth of field on a point, an
 object, or `True` for the target. Creating a camera makes it the active one.
-`set_focus(target, fstop)`, `animate_lens`, `animate_fstop`, or simply `camera.to(lens=80, duration=30)`.
+`set_focus(target, fstop)`, `animate_lens`, `animate_fstop`, or simply `camera.to(lens=80, duration=1)`.
 
 ### Lights
 
@@ -178,7 +183,7 @@ object, or `True` for the target. Creating a camera makes it the active one.
 | `SpotLight` | `SpotLight(location, energy=50, color=None, rotation=None, target=None, angle=45, blend=0.15, radius=0.1)` | `angle` is the full cone in degrees. |
 | `AreaLight` | `AreaLight(location, energy=100, color=None, rotation=None, target=None, size=(1, 1))` | A softbox. |
 
-`light.to(energy=0, duration=60)` fades, `animate_energy` / `animate_color` for raw
+`light.to(energy=0, duration=2)` fades, `animate_energy` / `animate_color` for raw
 keyframes, `light.set(shadow_soft_size=2)` for anything else.
 
 ### Meshes
@@ -232,25 +237,26 @@ value to the given one with an easing, then advances the playhead, so calls chai
 a sequence:
 
 ```python
-cube.to(location=(0, 0, 2), duration=30, easing="back-out")   # frames 0..30
-cube.to(rotation=(0, 0, 180), scale=0.5, duration=20)          # frames 30..50
-cube.wait(10).to(scale=0, duration=10, easing="back-in")       # frames 60..70
-cube.to(location=(2, 0, 0), duration=20, start="<")            # in parallel with the previous tween
-cube.to(location=(0, 0, 0), duration=20, start=100)            # at an absolute frame
+cube.to(location=(0, 0, 2), duration=1, easing="back-out")     # 0 s .. 1 s
+cube.to(rotation=(0, 0, 180), scale=0.5, duration=0.5)         # 1 s .. 1.5 s
+cube.wait(0.3).to(scale=0, duration=0.3, easing="back-in")     # 1.8 s .. 2.1 s
+cube.to(location=(2, 0, 0), duration=0.5, start="<")           # in parallel with the previous tween
+cube.to(location=(0, 0, 0), duration=0.5, start=3)             # at an absolute time
+cube.to(scale=1, duration=pb.frames(12))                       # an exact number of frames
 
-sphere.from_(scale=0, duration=15)                             # entrance: from 0 to the current scale
-light.to(energy=0, duration=60)                                # any property of the object or its data
-camera.to(lens=80, duration=30)
-mat.bsdf.roughness.to(1, duration=30)                          # a material socket
+sphere.from_(scale=0, duration=0.5)                            # entrance: from 0 to the current scale
+light.to(energy=0, duration=2)                                 # any property of the object or its data
+camera.to(lens=80, duration=1)
+mat.bsdf.roughness.to(1, duration=1)                           # a material socket
 ```
 
 | Member | Description |
 |---|---|
-| `to(duration=20, easing="cubic-out", start=None, **props)` | tween to the given values |
-| `from_(duration=20, easing="cubic-out", start=None, **props)` | tween from the given values to the current ones |
-| `wait(frames)` | advance the playhead |
-| `cursor` | the playhead (read / write) |
-| `start` | `None`: the playhead; a frame number; `"<"`: the start of the previous tween |
+| `to(duration=0.6, easing="cubic-out", start=None, **props)` | tween to the given values |
+| `from_(duration=0.6, easing="cubic-out", start=None, **props)` | tween from the given values to the current ones |
+| `wait(seconds)` | advance the playhead |
+| `cursor`, `cursor_frame` | the playhead in seconds (read / write) and in frames |
+| `start` | `None`: the playhead; a time in seconds; `"<"`: the start of the previous tween |
 
 `props` are `location`, `rotation` (degrees), `scale` (a number is broadcast), or any
 animatable property of the object or its datablock (`energy`, `lens`, `hide_render`…).
@@ -261,28 +267,28 @@ Every frame gets a keyframe, so the easing is exact. Easing names are listed in
 
 ```python
 cubes = pb.Group(pb.Cube(location=(i, 0, 0)) for i in range(20))
-cubes.from_(scale=0, duration=10, stagger=1, easing="back-out")      # one after the other
-cubes.to(location=lambda i, cube: (i, 0, math.sin(i)), duration=30)  # a value per member
+cubes.from_(scale=0, duration=0.4, stagger=0.05, easing="back-out")  # one after the other
+cubes.to(location=lambda i, cube: (i, 0, math.sin(i)), duration=1)   # a value per member
 cubes[5:].set_material("#FF0000")                                     # slicing, delegation
-cubes.wait(20).pop_out(stagger=1, reverse=True)
+cubes.wait(0.7).pop_out(stagger=0.05, reverse=True)
 ```
 
 A `Group` applies any method call to all its members (and returns the group), its tweens
-accept `stagger` (frames between members) and `reverse`, and a property given as a
+accept `stagger` (seconds between members) and `reverse`, and a property given as a
 callable receives `(index, member)`. The ready-made motions are group methods, each
 starting at the group's playhead (or `start=`) and staggered:
 
 | Method | Channel | Signature |
 |---|---|---|
-| `pop_in` | scale | `(duration=15, stagger=2, easing="back-out", start=None, scale_from=0, reverse=False)` |
-| `pop_out` | scale | `(duration=15, stagger=2, easing="back-in", start=None, scale_to=0, reverse=False)` then hides |
-| `slide_in` | location | `(offset=(0, -1, 0), duration=20, stagger=2, easing="cubic-out", start=None, reverse=False)` hidden before |
-| `slide_out` | location | `(offset=(0, 1, 0), duration=20, stagger=2, easing="cubic-in", …)` then hides |
-| `flip_in` | rotation | `(angle=(90, 0, 0), duration=20, stagger=2, easing="back-out", …)` hidden before |
-| `flip_out` | rotation | `(angle=(-90, 0, 0), duration=20, stagger=2, easing="back-in", …)` then hides |
-| `typewriter` | visibility | `(stagger=3, start=None, reverse=False)` |
-| `wave` | location | `(duration=60, amplitude=0.2, period=30, phase=0.6, axis=1, start=None)` |
-| `shake` | location | `(duration=30, amplitude=0.05, seed=0, start=None)` decaying jitter |
+| `pop_in` | scale | `(duration=0.5, stagger=0.08, easing="back-out", start=None, scale_from=0, reverse=False)` |
+| `pop_out` | scale | `(duration=0.5, stagger=0.08, easing="back-in", start=None, scale_to=0, reverse=False)` then hides |
+| `slide_in` | location | `(offset=(0, -1, 0), duration=0.6, stagger=0.08, easing="cubic-out", start=None, reverse=False)` hidden before |
+| `slide_out` | location | `(offset=(0, 1, 0), duration=0.6, stagger=0.08, easing="cubic-in", …)` then hides |
+| `flip_in` | rotation | `(angle=(90, 0, 0), duration=0.6, stagger=0.08, easing="back-out", …)` hidden before |
+| `flip_out` | rotation | `(angle=(-90, 0, 0), duration=0.6, stagger=0.08, easing="back-in", …)` then hides |
+| `typewriter` | visibility | `(stagger=0.1, start=None, reverse=False)` |
+| `wave` | location | `(duration=2, amplitude=0.2, period=1, phase=0.6, axis=1, start=None)` |
+| `shake` | location | `(duration=1, amplitude=0.05, seed=0, start=None)` decaying jitter |
 
 Offsets and angles are in the parent's local space: for an upright text, local Y is up,
 so `slide_in(offset=(0, -1, 0))` rises from below. Motions on different channels combine;
@@ -320,7 +326,7 @@ noise.fac >> ramp.fac >> mat.bsdf.base_color       # a chain of links
 (noise.fac * 0.1 + 0.05) >> mat.output.displacement  # Math nodes created on the fly
 mat.bsdf.roughness = 0.3                             # set a socket
 mat.bsdf.set(roughness=0.3, base_color="#FF8800")    # several at once
-mat.bsdf.roughness.to(1, duration=30)                # tween a socket
+mat.bsdf.roughness.to(1, duration=1)                 # tween a socket
 mat.bsdf.roughness.animate([0, 1], [0, 30])          # raw keyframes
 noise.fac.map_range((0, 1), (0, 5)).clamp(0, 2)      # helpers on a socket
 noise.fac.mix("#00FF00", fac=0.3)                    # MixRGB
@@ -409,7 +415,7 @@ Emits copies of `instance` from the faces of `emitter`, or grows hair with `hair
 Forces: `Vortex`, `Turbulence`, `Wind` (blows along its local Z, orient it with
 `rotation`), `ForceField` (negative strength attracts), all with
 `(location, rotation, strength, noise, flow, size, falloff)`, `animate_strength`, and
-tweens (`wind.to(strength=0, duration=30)`).
+tweens (`wind.to(strength=0, duration=1)`).
 
 ### Text
 
@@ -443,9 +449,9 @@ post = pb.post
 post.vignette(0.4)
 glow = post.glow(threshold=1.0, mix=0.2)
 glow.set("mix", 0.4)
-post.chromatic_aberration().animate("amount", [0, 0.5, 0], [40, 44, 50])
-post.roll().burst("y", bursts=[(60, 70)], low=-200, high=200)
-post.glitch(bursts=[(40, 52), (90, 96)], strength=1.0, seed=0)
+post.chromatic_aberration().animate("amount", [0, 0.5, 0], [40, 44, 50])   # raw frames
+post.roll().burst("y", bursts=[(2, 2.3)], low=-200, high=200)              # seconds
+post.glitch(bursts=[(1.3, 1.7), (3, 3.2)], strength=1.0, seed=0)
 ```
 
 | Effect | Parameters | Description |
@@ -461,10 +467,10 @@ post.glitch(bursts=[(40, 52), (90, 96)], strength=1.0, seed=0)
 | `roll(y=0, x=0)` | `x`, `y` (pixels) | Whole picture shifted with wrap-around (VHS). |
 | `color(hue=0.5, saturation=1, value=1)` | `hue`, `saturation`, `value` | Hue rotation and multipliers. |
 | `exposure(stops=0)`, `blur(size=0)`, `pixelate(size=4)` | `stops`, `size`, none | |
-| `glitch(bursts, strength=1, seed=0)` | returns the effects | RGB split + slices + grain + flicker during each `(start, end)`. |
+| `glitch(bursts, strength=1, seed=0)` | returns the effects | RGB split + slices + grain + flicker during each `(start, end)` in seconds. |
 
 `Effect` methods: `set(name, value)`, `animate(name, values, frames)`,
-`burst(name, bursts, low, high, seed=0, rest=0)`.
+`burst(name, bursts, low, high, seed=0, rest=0)` (bursts in seconds).
 
 The compositor is also a node tree with the same idiom, for hand-built graphs:
 `post.input` (Render Layers), `post.output` (Composite), `post.chain(node)` inserts a
@@ -542,13 +548,13 @@ for frame in (10, 60, 120):
 pass explicit `start=` frames, or drive everything from one `Group`.
 
 **Physics.** Give objects `rigid_body()`, a floor `rigid_body("PASSIVE")`, then
-`pb.render("out.mp4", frames=120, bake=True)`.
+`pb.render("out.mp4", duration=4, bake=True)`.
 
 **Imported model with its own materials.** `model = pb.Model("robot.glb")`, then
 `model.get_material("Eyes").bsdf.emission_strength = 5`.
 
-**Seamless loop.** Make every periodic motion complete a whole number of periods in
-`N_FRAMES` and render `frames=N_FRAMES`.
+**Seamless loop.** Make every periodic motion complete a whole number of periods in the
+duration and render that exact `duration` (or `frames=`).
 
 **Anything pyblender does not expose.** `obj.set(**props)` reaches any property of the
 object or its datablock, `scene.set(**props)` any render setting, `add_modifier(kind,
@@ -566,7 +572,7 @@ Most names were kept; the main changes:
 | `mesh.modify_rigid_body()`, `modify_soft_body()`, `modify_collision()` | `mesh.rigid_body()`, `soft_body()`, `collision()` |
 | `mesh.modify_geometry()` | `mesh.geometry()` |
 | `mesh.scale(x, y, z)` | `mesh.resize((x, y, z))`; `scale` is now a property |
-| hand-built value lists for every animation | `obj.to(...)`, `from_()`, `wait()`, groups with `stagger` |
+| hand-built value lists for every animation, in frames | `obj.to(...)`, `from_()`, `wait()`, groups with `stagger`, all in seconds |
 | `scene.create_compositor()` | `scene.post` / `pb.post` (same `create_*` names, plus effects) |
 | `node["Out"].to(other["In"])` | still works; `node.out >> other.in_` is shorter |
 | `Particles(src, tgt, factor_random=…)` | `ParticleSystem(emitter, instance, velocity_random=…)`, see signature |
@@ -588,7 +594,7 @@ Rotations were already in degrees and still are.
 | Black or empty render | With `pb.render` a camera and light are added; with your own `Scene`, add a `Sun(target=…)` and check the camera. |
 | Particles invisible | The emitter was created with `visible=False`. Let `ParticleSystem(hide_emitter=True)` hide it. |
 | Fog invisible in Eevee | Call `scene.add_volumetric_light()`. |
-| Physics does nothing | Render with `bake=True` and set `frames=`. |
+| Physics does nothing | Render with `bake=True` and set `duration=`. |
 | `has no animatable property` | `to()` only knows transforms and properties of the object or its datablock; use `animate(attr, values, frames, data=…)` for anything else. |
 | `cannot link nodes that belong to different node trees` | A node from one material was linked into another; create it in the target material. |
 | Text appears flat / from above | `Text` is upright by default; put the camera on -Y. |
