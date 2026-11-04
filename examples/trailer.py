@@ -1,10 +1,12 @@
-"""The pyblender trailer: eight shots, poetry and tech, in one script.
+"""The pyblender trailer: ten shots, poetry and tech, in one script.
 
-Run ``pyblender trailer.py``; shots render one after the other (Blender is reset between
-them) and are joined with crossfades into ``renders/trailer.mp4``.
+Run ``pyblender trailer.py``; shots render with Cycles one after the other (Blender is
+reset between them) and are joined with crossfades and a generated soundtrack into
+``renders/trailer.mp4``.
 """
 
 import os
+import wave as wavefile
 
 import numpy as np
 import pyblender as pb
@@ -18,7 +20,43 @@ BOLD, REGULAR, MONO = (os.path.join(FONTS, f) if os.path.exists(os.path.join(FON
                        for f in ("DejaVuSans-Bold.ttf", "DejaVuSans.ttf", "DejaVuSansMono.ttf"))
 BG, WHITE, ACCENT, CYAN, GREEN = "#0B0E14", "#F4F1EA", "#FF6B35", "#19D3FF", "#2BFF88"
 
-movie = pb.Movie("renders/trailer.mp4", fade=0.5, size=(1280, 720), samples=32)
+
+def make_music(path, seconds, rate=44100, seed=0):
+    """A soft ambient pad (Am, F, C, G) with sparse pentatonic pings, written as a WAV."""
+    t = np.arange(int(seconds * rate)) / rate
+    chords = [(220.0, 261.63, 329.63), (174.61, 220.0, 261.63),
+              (261.63, 329.63, 392.0), (196.0, 246.94, 293.66)]
+    out = np.zeros_like(t)
+    chord_length = 6.0
+    for i, chord in enumerate(chords * 4):
+        start = i * chord_length
+        if start >= seconds:
+            break
+        envelope = (np.clip((t - start) / 2.0, 0, 1)
+                    * np.clip((start + chord_length + 1.5 - t) / 2.0, 0, 1))
+        vibrato = 0.3 * np.sin(2 * np.pi * 0.1 * t)
+        for f in chord:
+            for k, amp in ((1, 1.0), (2, 0.35), (3, 0.12)):
+                out += amp * envelope * np.sin(2 * np.pi * f * k * t + vibrato)
+            out += 0.5 * envelope * np.sin(2 * np.pi * f * 1.003 * t)
+    rng = np.random.default_rng(seed)
+    for start in np.arange(1.0, seconds - 3, 1.7):
+        f = rng.choice([523.25, 587.33, 659.25, 783.99, 880.0])
+        d = np.clip(t - start, 0, None)
+        out += 0.35 * np.exp(-d * 2.5) * np.sin(2 * np.pi * f * d) * (t >= start)
+    out *= np.clip(t / 1.5, 0, 1) * 0.5 / np.abs(out).max()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with wavefile.open(path, "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(rate)
+        f.writeframes((out * 32767).astype(np.int16).tobytes())
+    return path
+
+
+MUSIC = make_music("renders/trailer_music.wav", seconds=60)
+movie = pb.Movie("renders/trailer.mp4", fade=0.5, size=(1280, 720), engine="cycles", samples=48,
+                 audio=MUSIC)
 
 
 def caption(camera, text, start, y=-0.82, size=0.11, color=WHITE, font=None, stagger=0.06):
@@ -48,13 +86,13 @@ def backdrop(color=BG, depth=6):
                                                                  metallic=0))
 
 
-def look(bloom=True):
+def look(glow=0.12, threshold=1.0):
     scene = pb.scene()
     scene.set_background(BG, strength=0.2)
     scene.set_color_management("Filmic", "Medium High Contrast")
     scene.set_eevee(ssr=True, gtao=True, soft_shadows=True)
-    if bloom:
-        scene.add_bloom(intensity=0.05, radius=5, threshold=1.0)
+    if glow:
+        pb.post.glow(threshold=threshold, mix=glow, size=6)
     pb.post.vignette(0.35, size=1.0, softness=0.5)
     pb.post.grain(0.04)
     return scene
@@ -107,7 +145,7 @@ def wave():
     camera.to(location=(n * 0.6, -n * 1.1, n * 0.35), duration=5, easing="sine-in-out")
     caption(camera, "676 cubes, one loop", start=0.8)
     code(camera, "cube.animate_scale_z(heights)", start=1.6)
-    look(bloom=False).set_background(BG, strength=0.3)
+    look(glow=0).set_background(BG, strength=0.3)
 
 
 @movie.shot(duration=5)
@@ -129,7 +167,7 @@ def curve():
     camera.animate_location([(9 * np.cos(a), 9 * np.sin(a), 3 + np.sin(2 * a)) for a in orbit],
                             range(frames))
     caption(camera, "draw with light", start=1.0)
-    look().add_bloom(intensity=0.08, radius=6, threshold=1)
+    look(glow=0.3)
 
 
 @movie.shot(duration=5, bake=True)
@@ -151,7 +189,7 @@ def physics():
     camera.to(location=(8, -12, 4), duration=5, easing="sine-in-out")
     caption(camera, "physics, one line per object", start=1.2)
     code(camera, "cube.rigid_body(mass=1, bounciness=0.45)", start=2.0)
-    look(bloom=False)
+    look(glow=0)
 
 
 @movie.shot(duration=4.5)
@@ -171,27 +209,22 @@ def fireflies():
     camera = pb.Camera((7, -7, 2.2), target=(0, 0, 1.2), lens=35)
     camera.to(location=(5, -8, 1.6), duration=4.5, easing="sine-in-out")
     caption(camera, "three hundred fireflies", start=1.4)
-    scene = look()
-    scene.add_volumetric_light()
-    scene.add_bloom(intensity=0.1, radius=5, threshold=2)
+    look(glow=0.3, threshold=2).add_volumetric_light()
 
 
 @movie.shot(duration=4.5)
 def material():
     """Tech: a procedural material built with the node idiom, its parameters tweened live."""
     mat = pb.Material(roughness=0.25, metallic=0.1)
-    coords, mapping = mat.create_texture_coordinate()
-    noise = mat.create_noise_texture(scale=3, detail=4)
+    noise = mat.create_noise_texture(scale=3, detail=4, dimensions="4D")
     ramp = mat.create_color_ramp(colors=[BG, ACCENT, "#FFD166", WHITE],
                                  positions=[0.3, 0.5, 0.65, 0.9])
     bump = mat.create_bump(strength=0.4)
-    mapping.vector >> noise.vector
     noise.fac >> ramp.fac >> mat.bsdf.base_color
     noise.fac >> bump.height
     bump.normal >> mat.bsdf.normal
-    noise.scale.to(9, duration=4.5, easing="sine-in-out")
-    mapping.rotation.to((0, 0, 90), duration=4.5, easing="linear")
-    pb.Sphere(radius=1.6, segments=96, material=mat).to(rotation=(0, 0, 60), duration=4.5,
+    noise.w.to(2.5, duration=4.5, easing="linear")        # the 4th dimension morphs the noise
+    pb.Sphere(radius=1.6, segments=96, material=mat).to(rotation=(0, 0, 25), duration=4.5,
                                                          easing="linear")
     backdrop(depth=5)
     pb.AreaLight((-4, -5, 5), energy=1200, size=(4, 4), target=(0, 0, 0), color="#FFF1E0")
@@ -200,7 +233,59 @@ def material():
     camera.to(location=(-1.5, -7.8, 0.4), duration=4.5, easing="sine-in-out")
     caption(camera, "shader nodes that read like Python", start=0.6)
     code(camera, "noise.fac >> ramp.fac >> bsdf.base_color", start=1.4)
-    look(bloom=False)
+    look(glow=0)
+
+
+@movie.shot(duration=4.5)
+def geometry():
+    """Tech: geometry nodes with the same idiom, points growing over a sphere."""
+    base = pb.IcoSphere(radius=1.5, subdivisions=4,
+                        material=pb.Material(color="#141A24", roughness=0.6, metallic=0.2))
+    geo = base.geometry()
+    points = geo.create_distribute_points(density=0, seed=3)
+    dots = geo.create_icosphere(radius=0.07, subdivisions=2)
+    instances = geo.create_instance_on_points()
+    sizes = geo.create_random_value(minimum=0.4, maximum=1.6, seed=1)
+    painted = geo.create_set_material(pb.Material(color=ACCENT, roughness=0.3,
+                                                  emission_strength=0.8))
+    joined = geo.create_join_geometry()
+    geo.output.unlink("Geometry")
+    geo.input.geometry >> points.mesh
+    points.points >> instances.points
+    dots.mesh >> instances.instance
+    sizes[1] >> instances.scale
+    instances.instances >> painted.geometry
+    painted.geometry >> joined.geometry
+    geo.input.geometry >> joined.geometry
+    joined.geometry >> geo.output.geometry
+    points.density.to(30, duration=3.0, easing="quad-out")
+    base.to(rotation=(0, 0, 80), duration=4.5, easing="linear")
+    backdrop(depth=5)
+    pb.AreaLight((-4, -5, 5), energy=1000, size=(4, 4), target=(0, 0, 0))
+    pb.PointLight((5, -3, 2), energy=300, color="#7FB7FF", radius=1)
+    camera = pb.Camera((0.5, -7.5, 1.2), target=pb.Empty((0, 0, 0)), lens=50)
+    camera.to(location=(-1.2, -7.4, 0.5), duration=4.5, easing="sine-in-out")
+    caption(camera, "geometry nodes, same idiom", start=0.6)
+    code(camera, "points.points >> instances.points", start=1.4)
+    look(glow=0.1)
+
+
+@movie.shot(duration=4.5)
+def dance():
+    """A model imported with its animation: the astronaut dances."""
+    model = pb.Model("../experiments/astronaut/model/Ymca Dance.fbx")
+    model.set_material(pb.Material(color=WHITE, roughness=0.45, metallic=0.05))
+    model.set_smooth()
+    backdrop(depth=4)
+    pb.SpotLight((2, -5, 5), target=(0, 0, 1), energy=2500, color="#FFE8D0", angle=50, blend=0.5,
+                 radius=0.8)
+    pb.SpotLight((-3, 3, 4), target=(0, 0, 1), energy=1500, color=CYAN, angle=60, blend=0.6)
+    pb.PointLight((3, -2, 0.5), energy=150, color=ACCENT, radius=1)
+    camera = pb.Camera((2.4, -4.2, 1.4), target=pb.Empty((0, 0, 0.95)), lens=50)
+    camera.to(location=(-2.0, -4.4, 1.2), duration=4.5, easing="sine-in-out")
+    caption(camera, "import a model, its animation comes along", start=0.8)
+    code(camera, 'pb.Model("Ymca Dance.fbx")', start=1.6)
+    look(glow=0)
 
 
 @movie.shot(duration=5.5)

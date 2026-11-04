@@ -47,11 +47,16 @@ class Movie:
         fade: default crossfade length in seconds between shots (0 for hard cuts).
         size, samples, engine: render settings shared by the shots.
         workdir: where the individual shot videos go (next to ``filename`` by default).
+        audio: a sound file mixed under the movie, cut to its length and faded out over
+            ``audio_fade`` seconds.
     """
 
-    def __init__(self, filename, fade=0.5, size=None, samples=None, engine=None, workdir=None):
+    def __init__(self, filename, fade=0.5, size=None, samples=None, engine=None, workdir=None,
+                 audio=None, audio_fade=2.0):
         self.filename = os.path.abspath(filename)
         self.fade = fade
+        self.audio = audio
+        self.audio_fade = audio_fade
         self.render_kwargs = {"size": size, "samples": samples, "engine": engine}
         self.workdir = workdir or os.path.splitext(self.filename)[0] + "_shots"
         self.shots = []
@@ -130,7 +135,8 @@ class Movie:
                 fades.append(0)
             else:
                 fades.append(float(shot.transition))
-        join([s.path for s in self.shots], fades, self.filename)
+        join([s.path for s in self.shots], fades, self.filename, audio=self.audio,
+             audio_fade=self.audio_fade)
         return self.filename
 
 
@@ -140,12 +146,16 @@ def video_duration(path):
     return float(json.loads(probe.stdout)["format"]["duration"])
 
 
-def join(paths, fades, filename, crf=None):
+def join(paths, fades, filename, crf=None, audio=None, audio_fade=2.0):
     """Concatenate videos with ffmpeg; ``fades[i]`` is the crossfade (seconds, 0 = cut)
-    between ``paths[i]`` and ``paths[i + 1]``."""
+    between ``paths[i]`` and ``paths[i + 1]``. ``audio`` is a sound file mixed under the
+    result, cut to its length and faded out."""
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is needed to join videos")
     durations = [video_duration(p) for p in paths]
+    # a crossfade cannot be longer than the shots it joins
+    fades = [min(fade, durations[i], durations[i + 1]) for i, fade in enumerate(fades)]
+    total = sum(durations) - sum(fades)
     inputs = [arg for p in paths for arg in ("-i", p)]
     filters, offset, previous = [], 0.0, "[0:v]"
     for index in range(1, len(paths)):
@@ -159,8 +169,17 @@ def join(paths, fades, filename, crf=None):
             filters.append(f"{previous}[{index}:v]concat=n=2:v=1:a=0{label}")
         previous = label
     cmd = ["ffmpeg", "-loglevel", "error", "-y", *inputs]
+    if audio is not None:
+        cmd += ["-i", os.path.abspath(audio)]
     if filters:
         cmd += ["-filter_complex", ";".join(filters), "-map", previous]
+    elif audio is not None:
+        cmd += ["-map", "0:v"]
+    if audio is not None:
+        fade_start = max(total - audio_fade, 0)
+        cmd += ["-map", f"{len(paths)}:a", "-t", f"{total:.3f}",
+                "-af", f"afade=t=out:st={fade_start:.3f}:d={audio_fade}", "-c:a", "aac",
+                "-b:a", "192k"]
     cmd += ["-c:v", "libx264", "-crf", str(defaults.crf if crf is None else crf),
             "-pix_fmt", "yuv420p", "-r", str(defaults.fps), filename]
     subprocess.run(cmd, check=True)

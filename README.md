@@ -161,7 +161,7 @@ Arguments fall back to `pb.defaults`. `engine` is `"eevee"` or `"cycles"`
 | `set_eevee(ssr, refraction, gtao, motion_blur, soft_shadows, volumetric_tile_size, volumetric_samples)` | |
 | `set_motion_blur(True, shutter)`, `set_transparent(True)`, `set_freestyle(line_thickness)` | |
 | `add_bloom(intensity, radius, threshold)`, `add_volumetric_light(shadows)`, `add_glare(...)` | Eevee bloom, volumetrics, finishing glare stack |
-| `use_gpu("CUDA")`, `bake()` | Cycles on GPU (CPU fallback); bake physics over the animation range |
+| `use_gpu("CUDA")`, `set_denoising(True, denoiser=None)`, `bake()` | Cycles on GPU (CPU fallback); denoising (OptiX, else OpenImageDenoise, on by default for Cycles); bake physics over the animation range |
 | `post` (alias `compositor`), `scene` | post-processing stack, the `bpy` scene |
 
 ### Camera
@@ -202,7 +202,7 @@ Wherever `material` is expected, a color is accepted and wrapped in a `Material`
 | `Cylinder` | `Cylinder(location, rotation, scale, radius=1, depth=1, segments=32, caps="NGON", material, visible)` |
 | `Cone`, `Torus` | `Cone(…, radius, depth, segments)`, `Torus(…, major_radius, minor_radius, div)` |
 | `Line` | `Line(points, stroke_width=0.01, material, visible)` — polyline rendered as a tube |
-| `Model` | `Model(path, location, rotation, scale, material, visible)` — `.glb` / `.gltf` / `.fbx` / `.obj`; several objects become a group (`model.parts`) |
+| `Model` | `Model(path, location, rotation, scale, material, visible)` — `.glb` / `.gltf` / `.fbx` / `.obj`; the meshes are in `model.parts`, a rigged model keeps its `armature` and animation (`model.animation_range`) |
 | `Empty` | `Empty(location, rotation, scale, name)` — invisible target or group |
 | `merge(meshes)` | join several meshes into one object |
 
@@ -485,7 +485,8 @@ node into the effect stack, and `create_glare`, `create_lens_distortion`,
 Several scenes in one script, rendered one after the other and joined with crossfades:
 
 ```python
-movie = pb.Movie("trailer.mp4", fade=0.5, size=(1280, 720), samples=32)
+movie = pb.Movie("trailer.mp4", fade=0.5, size=(1280, 720), engine="cycles", samples=48,
+                 audio="music.wav")
 
 @movie.shot(duration=4)
 def opening():
@@ -502,7 +503,8 @@ movie.render()                      # or movie.render(only=["cubes"], force=Fals
 Blender is reset before each shot, so a shot builds its scene from scratch (automatic
 camera and light when missing, `pb.scene()` / `pb.post` to tune it, or return a `Scene`).
 `transition` is `"fade"` (the movie's `fade` seconds), `"cut"` or a number of seconds;
-`movie.add_file("logo.mp4")` inserts an existing video. Shot videos are kept in
+`movie.add_file("logo.mp4")` inserts an existing video; `audio` is a soundtrack cut to the
+movie and faded out over `audio_fade` seconds. Shot videos are kept in
 `<name>_shots/` next to the final file, and `pyblender.movie.join(paths, fades, filename)`
 is the ffmpeg concatenation on its own.
 
@@ -546,7 +548,7 @@ pyblender text_motion.py
 
 | Script | Output | Shows |
 |---|---|---|
-| `trailer.py` | mp4 | The pyblender trailer: eight shots in one `Movie`, poetry and tech, ~40 s. |
+| `trailer.py` | mp4 | The pyblender trailer: ten shots in one `Movie` rendered with Cycles, a soundtrack generated with numpy, ~44 s. |
 | `text_motion.py` | mp4 | Title card: group playheads, `pop_in`, `slide_in`, `wave`, exits. |
 | `glitch_title.py` | mp4 | Sci-fi title with CRT look, chromatic aberration and glitch bursts. |
 | `falling_cubes.py` | mp4 | Rigid bodies on a floor, `Group`, `bake=True`. |

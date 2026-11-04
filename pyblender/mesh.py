@@ -429,15 +429,17 @@ class Model(Mesh):
         imported = [obj for obj in bpy.data.objects if obj not in before]
         roots = [obj for obj in imported if obj.parent is None or obj.parent in before]
 
+        meshes = Group(_wrap(obj) for obj in imported if obj.type == "MESH")
         if len(roots) == 1:
             self.obj = roots[0]
-            self.parts = ()
+            self.parts = meshes if self.obj.type != "MESH" else ()
         else:
             group = Empty(name="model")
             self.obj = group.obj
             for obj in roots:
                 obj.parent = group.obj
-            self.parts = Group(_wrap(obj) for obj in imported if obj.type == "MESH")
+            self.parts = meshes
+        self.armature = next((obj for obj in imported if obj.type == "ARMATURE"), None)
 
         self.obj.location = location
         self.obj.rotation_euler = to_radians(rotation)
@@ -447,6 +449,16 @@ class Model(Mesh):
         self.set_visible(visible)
 
     get_material_names = Mesh.material_names.fget
+
+    @property
+    def animation_range(self):
+        """``(first, last)`` frames of the imported animation, or ``None``."""
+        for obj in (self.armature, self.obj):
+            data = obj.animation_data if obj is not None else None
+            if data is not None and data.action is not None:
+                first, last = data.action.frame_range
+                return int(first), int(last)
+        return None
 
 
 def _wrap(obj):

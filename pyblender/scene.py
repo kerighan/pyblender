@@ -50,6 +50,7 @@ class Scene:
         self.samples = defaults.samples if samples is None else samples
         self.animation = False
         self._post = None
+        self._denoise_set = False
         if duration is not None:
             self.duration = duration
         elif frames is not None:
@@ -226,6 +227,21 @@ class Scene:
             warnings.warn(f"GPU rendering unavailable ({exc}), using CPU")
         return self
 
+    def set_denoising(self, enabled=True, denoiser=None):
+        """Cycles denoising. ``denoiser``: ``"OPTIX"``, ``"OPENIMAGEDENOISE"`` or ``None`` to try
+        OptiX first."""
+        cycles = self.scene.cycles
+        cycles.use_denoising = enabled
+        self._denoise_set = True
+        if enabled:
+            for name in ([denoiser] if denoiser else ["OPTIX", "OPENIMAGEDENOISE"]):
+                try:
+                    cycles.denoiser = name
+                    break
+                except TypeError:
+                    continue
+        return self
+
     def bake(self):
         """Bake every physics cache (rigid bodies, cloth, soft bodies, particles) over the
         animation range before rendering."""
@@ -287,6 +303,10 @@ class Scene:
                 self.scene.eevee.taa_render_samples = samples
             else:
                 self.scene.cycles.samples = samples
+        if not fast:
+            self.scene.render.use_persistent_data = True
+            if self.scene.cycles.use_denoising is False and not self._denoise_set:
+                self.set_denoising(True)
         if gpu and not fast:
             self.use_gpu()
         if frame is not None:
