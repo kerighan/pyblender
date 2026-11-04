@@ -23,6 +23,7 @@ if bpy is not None:
     from .light import AreaLight, PointLight, SpotLight, Sun
     from .material import (DiffuseMaterial, EmissionMaterial, Material, NodeMaterial,
                            RefractionMaterial, VolumeMaterial)
+    from .movie import Movie
     from .mesh import (Box, Circle, Cone, Cube, Cylinder, Grid, IcoSphere, Line, Mesh, Model,
                        Plane, Sphere, Torus, UVSphere, merge)
     from .particles import ParticleSystem
@@ -37,7 +38,7 @@ if bpy is not None:
     __all__ += [
         "AreaLight", "Bezier", "BezierCircle", "Box", "Camera", "Circle", "Cone", "Cube",
         "Cylinder", "DiffuseMaterial", "EmissionMaterial", "Empty", "ForceField", "Geometry",
-        "Grid", "Group", "IcoSphere", "Image", "Line", "Material", "Mesh", "Model",
+        "Grid", "Group", "IcoSphere", "Image", "Line", "Material", "Mesh", "Model", "Movie",
         "NodeMaterial", "Noise", "ParticleSystem", "Plane", "PointLight", "PostProcess",
         "RefractionMaterial", "Scene", "Sphere", "SpotLight", "Sun", "Text", "Texture", "Torus",
         "Turbulence", "UVSphere", "VolumeMaterial", "Vortex", "Wind", "auto_camera",

@@ -73,7 +73,8 @@ def auto_light():
     center = (low + high) / 2
     Sun(energy=3, angle=10, target=tuple(center),
         location=tuple(center + Vector((3, -4, 6)) * max((high - low).length, 1)))
-    scene().set_background("#404040", strength=1.0)
+    if bpy.context.scene.world is None:  # keep a background the script already chose
+        scene().set_background("#404040", strength=1.0)
 
 
 def render(filename, **kwargs):

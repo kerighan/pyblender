@@ -36,7 +36,8 @@ pyblender hello.py        # runs the script inside Blender, writes hello.mp4
    [Tweens](#tweens) · [Groups and motions](#groups-and-motions) ·
    [Materials and nodes](#materials-and-nodes) · [Geometry nodes](#geometry-nodes) ·
    [Textures](#textures) · [Curves](#curves) · [Particles and forces](#particles-and-forces) ·
-   [Text](#text) · [Post-processing](#post-processing) · [Timeline and easings](#timeline-and-easings)
+   [Text](#text) · [Post-processing](#post-processing) · [Movies](#movies) ·
+   [Timeline and easings](#timeline-and-easings)
 5. [Examples](#examples)
 6. [Recipes](#recipes)
 7. [Migrating from the 2022 API](#migrating-from-the-2022-api)
@@ -479,6 +480,32 @@ node into the effect stack, and `create_glare`, `create_lens_distortion`,
 `create_texture`, `create_hue_saturation`, `create_translate`, `create_displace`,
 `create_ellipse_mask`, `create_mix_rgb`, `create_math`… build nodes.
 
+### Movies
+
+Several scenes in one script, rendered one after the other and joined with crossfades:
+
+```python
+movie = pb.Movie("trailer.mp4", fade=0.5, size=(1280, 720), samples=32)
+
+@movie.shot(duration=4)
+def opening():
+    pb.Text("hello", split="letters").parts.pop_in()
+    pb.Camera((0, -8, 0), target=(0, 0, 0))
+
+@movie.shot(duration=5, transition="cut", bake=True)
+def cubes():
+    pb.Group(pb.Cube(location=(i, 0, 0)) for i in range(5)).from_(scale=0, stagger=0.1)
+
+movie.render()                      # or movie.render(only=["cubes"], force=False) while iterating
+```
+
+Blender is reset before each shot, so a shot builds its scene from scratch (automatic
+camera and light when missing, `pb.scene()` / `pb.post` to tune it, or return a `Scene`).
+`transition` is `"fade"` (the movie's `fade` seconds), `"cut"` or a number of seconds;
+`movie.add_file("logo.mp4")` inserts an existing video. Shot videos are kept in
+`<name>_shots/` next to the final file, and `pyblender.movie.join(paths, fades, filename)`
+is the ffmpeg concatenation on its own.
+
 ### Timeline and easings
 
 `pyblender.animation` is pure Python (no `bpy`), for value lists the tweens cannot express:
@@ -519,6 +546,7 @@ pyblender text_motion.py
 
 | Script | Output | Shows |
 |---|---|---|
+| `trailer.py` | mp4 | The pyblender trailer: eight shots in one `Movie`, poetry and tech, ~40 s. |
 | `text_motion.py` | mp4 | Title card: group playheads, `pop_in`, `slide_in`, `wave`, exits. |
 | `glitch_title.py` | mp4 | Sci-fi title with CRT look, chromatic aberration and glitch bursts. |
 | `falling_cubes.py` | mp4 | Rigid bodies on a floor, `Group`, `bake=True`. |
@@ -581,6 +609,7 @@ Most names were kept; the main changes:
 | `Scene(cycles=True)`, `render(fast=False)` | still accepted; `engine="cycles"` is the documented form |
 | `Scene.render(background_color=…, contrast=…)` | `scene.set_background()`, `scene.set_color_management()`, `scene.set_eevee()` |
 | `Text(text, align="CENTER")` | `Text(body, align="center", split=…)`, upright by default |
+| one script per scene, joined by hand | `pb.Movie` with one function per shot |
 | `Image`, `Texture`, `Noise`, `RefractionBSDF`, `Box`, `UVSphere`, `shade_smooth` | unchanged |
 
 Rotations were already in degrees and still are.
