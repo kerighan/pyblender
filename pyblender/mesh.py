@@ -5,13 +5,24 @@ import os
 import bmesh
 import bpy
 
-from .base import BlenderObject, Empty, link_to_scene
-from .material import NodeMaterial
+from .base import BlenderObject, Empty, Group, link_to_scene
+from .material import Material, NodeMaterial
 from .utils import faces_direction, to_radians
 
 
+def as_material(material):
+    """Accept a material, a color (``"#FF8800"`` or ``(r, g, b)``) or ``None``."""
+    if material is None or hasattr(material, "mat"):
+        return material
+    return Material(color=material)
+
+
 class Mesh(BlenderObject):
-    """Base class for meshes and curves: materials, shading, modifiers, physics."""
+    """Base class for meshes and curves: materials, shading, modifiers, physics.
+
+    Wherever a ``material`` is expected, a color is accepted too and wrapped in a
+    :class:`~pyblender.material.Material`.
+    """
 
     # ------------------------------------------------------------------
     # Materials and shading
@@ -19,6 +30,7 @@ class Mesh(BlenderObject):
 
     def add_material(self, material):
         """Append a material slot."""
+        material = as_material(material)
         if material is not None:
             for part in self.parts or (self,):
                 part.obj.data.materials.append(material.mat)
@@ -26,6 +38,7 @@ class Mesh(BlenderObject):
 
     def set_material(self, material, index=0):
         """Replace the material of slot ``index`` (appends when the slot does not exist)."""
+        material = as_material(material)
         if material is None:
             return self
         for part in self.parts or (self,):
@@ -306,7 +319,8 @@ class Sphere(Mesh):
     """
 
     def __init__(self, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1), radius=1,
-                 div=32, material=None, visible=True, smooth=True):
+                 div=32, material=None, visible=True, smooth=True, segments=None):
+        div = div if segments is None else segments
         self._add_primitive(bpy.ops.mesh.primitive_uv_sphere_add, material, visible, rotation,
                             radius=radius, location=location, scale=scale,
                             segments=div, ring_count=max(div // 2, 3))
@@ -320,7 +334,8 @@ class IcoSphere(Mesh):
     """An icosphere. ``div`` is the number of subdivisions (keep it below 8)."""
 
     def __init__(self, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1), radius=1,
-                 div=3, material=None, visible=True, smooth=True):
+                 div=3, material=None, visible=True, smooth=True, subdivisions=None):
+        div = div if subdivisions is None else subdivisions
         self._add_primitive(bpy.ops.mesh.primitive_ico_sphere_add, material, visible, rotation,
                             radius=radius, location=location, scale=scale, subdivisions=div)
         self.set_smooth(smooth)
@@ -330,7 +345,8 @@ class Circle(Mesh):
     """A flat circle (mesh). ``fill`` makes it a disc."""
 
     def __init__(self, location=(0, 0, 0), rotation=(0, 0, 0), radius=1, div=32, fill=False,
-                 material=None, visible=True):
+                 material=None, visible=True, segments=None):
+        div = div if segments is None else segments
         self._add_primitive(bpy.ops.mesh.primitive_circle_add, material, visible, rotation,
                             radius=radius, location=location, vertices=div,
                             fill_type="TRIFAN" if fill else "NOTHING")
@@ -341,7 +357,8 @@ class Cylinder(Mesh):
     ``caps`` one of ``"NGON"``, ``"TRIFAN"`` or ``"NOTHING"`` (open tube)."""
 
     def __init__(self, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1), radius=1,
-                 depth=1, div=32, caps="NGON", material=None, visible=True):
+                 depth=1, div=32, caps="NGON", material=None, visible=True, segments=None):
+        div = div if segments is None else segments
         self._add_primitive(bpy.ops.mesh.primitive_cylinder_add, material, visible, rotation,
                             radius=radius, depth=depth, vertices=div, end_fill_type=caps,
                             location=location, scale=scale)
@@ -349,7 +366,8 @@ class Cylinder(Mesh):
 
 class Cone(Mesh):
     def __init__(self, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1), radius=1,
-                 depth=2, div=32, material=None, visible=True):
+                 depth=2, div=32, material=None, visible=True, segments=None):
+        div = div if segments is None else segments
         self._add_primitive(bpy.ops.mesh.primitive_cone_add, material, visible, rotation,
                             radius1=radius, depth=depth, vertices=div,
                             location=location, scale=scale)
@@ -419,7 +437,7 @@ class Model(Mesh):
             self.obj = group.obj
             for obj in roots:
                 obj.parent = group.obj
-            self.parts = [_wrap(obj) for obj in imported if obj.type == "MESH"]
+            self.parts = Group(_wrap(obj) for obj in imported if obj.type == "MESH")
 
         self.obj.location = location
         self.obj.rotation_euler = to_radians(rotation)

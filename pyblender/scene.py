@@ -9,6 +9,36 @@ import bpy
 from .utils import to_rgba
 
 
+class Defaults:
+    """Package-wide render defaults, editable: ``pb.defaults.engine = "cycles"``."""
+
+    size = (1280, 720)
+    engine = "eevee"      # "eevee" or "cycles"
+    samples = None        # None keeps Blender's defaults
+    frame_rate = 30
+    crf = 18
+    gpu = True
+
+
+defaults = Defaults()
+
+ENGINES = {"eevee": "BLENDER_EEVEE", "cycles": "CYCLES"}
+
+
+def _engine(engine=None, fast=None, cycles=None):
+    """Resolve the three ways of choosing a render engine into ``"eevee"`` / ``"cycles"``."""
+    if cycles is not None:
+        return "cycles" if cycles else "eevee"
+    if fast is not None:
+        return "eevee" if fast else "cycles"
+    if engine is None:
+        return defaults.engine
+    engine = engine.lower()
+    if engine not in ENGINES:
+        raise ValueError(f"engine must be 'eevee' or 'cycles', got {engine!r}")
+    return engine
+
+
 class Scene:
     """Render settings and output for the current Blender scene.
 
@@ -16,20 +46,55 @@ class Scene:
         camera: the :class:`~pyblender.camera.Camera` used for rendering. Defaults to the
             last camera created.
         size: output resolution, can also be given to :meth:`render`.
-        fast: Eevee (fast) rather than Cycles. Can also be given to :meth:`render`.
+        engine: ``"eevee"`` (fast) or ``"cycles"`` (path tracing). ``fast=False`` and
+            ``cycles=True`` are accepted too.
         samples: render samples, ``None`` keeps Blender's defaults.
+        frames: number of frames of the animation (``frames=120`` renders 0..119).
     """
 
-    def __init__(self, camera=None, size=(1280, 720), fast=True, samples=None, cycles=None):
+    def __init__(self, camera=None, size=None, engine=None, samples=None, frames=None,
+                 fast=None, cycles=None):
         self.scene = bpy.context.scene
         if camera is not None:
             self.scene.camera = camera.obj
         self.camera = camera
-        self.size = size
-        self.fast = fast if cycles is None else not cycles
-        self.samples = samples
+        self.size = defaults.size if size is None else size
+        self.engine = _engine(engine, fast, cycles)
+        self.samples = defaults.samples if samples is None else samples
         self.animation = False
         self._post = None
+        if frames is not None:
+            self.frames = frames
+
+    @property
+    def fast(self):
+        return self.engine == "eevee"
+
+    @fast.setter
+    def fast(self, value):
+        self.engine = "eevee" if value else "cycles"
+
+    @property
+    def frames(self):
+        """Number of frames of the animation; setting it renders frames ``0..frames-1``."""
+        return self.scene.frame_end - self.scene.frame_start + 1
+
+    @frames.setter
+    def frames(self, count):
+        self.set_animation_bounds(0, int(count) - 1)
+
+    def set(self, **properties):
+        """Set any property of the Blender scene, its render, Eevee or Cycles settings:
+        ``scene.set(frame_step=2, film_transparent=True, taa_render_samples=16)``."""
+        for name, value in properties.items():
+            for holder in (self.scene, self.scene.render, self.scene.eevee, self.scene.cycles,
+                           self.scene.view_settings):
+                if hasattr(holder, name):
+                    setattr(holder, name, value)
+                    break
+            else:
+                raise AttributeError(f"scene has no property {name!r}")
+        return self
 
     @property
     def post(self):
@@ -182,8 +247,8 @@ class Scene:
     # Rendering
     # ------------------------------------------------------------------
 
-    def render(self, filename, size=None, fast=None, gpu=True, samples=None, frame_rate=30,
-               crf=18, frame=None, bake=False):
+    def render(self, filename, size=None, engine=None, gpu=None, samples=None, frame_rate=None,
+               crf=None, frame=None, frames=None, bake=False, fast=None, cycles=None):
         """Render to ``filename``.
 
         * ``.png`` renders a still image, or the animation as ``0001.png``…
@@ -192,18 +257,26 @@ class Scene:
           and encodes them with ffmpeg.
 
         Arguments:
-            size, fast, samples: override the values given to :class:`Scene`.
+            size, engine, samples: override the values given to :class:`Scene`.
             gpu: use the GPU for Cycles.
             frame_rate, crf: video frame rate and quality (lower crf = better).
             frame: render this frame (stills only).
+            frames: number of frames to render (animation ``0..frames-1``).
             bake: bake physics caches first.
         """
-        fast = self.fast if fast is None else fast
+        if fast is not None or cycles is not None or engine is not None:
+            self.engine = _engine(engine, fast, cycles)
+        fast = self.fast
         size = self.size if size is None else size
         samples = self.samples if samples is None else samples
+        gpu = defaults.gpu if gpu is None else gpu
+        frame_rate = defaults.frame_rate if frame_rate is None else frame_rate
+        crf = defaults.crf if crf is None else crf
+        if frames is not None:
+            self.frames = frames
 
         render = self.scene.render
-        render.engine = "BLENDER_EEVEE" if fast else "CYCLES"
+        render.engine = ENGINES[self.engine]
         render.resolution_x, render.resolution_y = size
         render.resolution_percentage = 100
         render.image_settings.file_format = "PNG"

@@ -15,7 +15,7 @@ except ImportError:  # outside Blender
 __all__ = ["reset"]
 
 if bpy is not None:
-    from .base import Empty
+    from .base import Empty, Group
     from .camera import Camera
     from .curve import Bezier, BezierCircle
     from .force import ForceField, Turbulence, Vortex, Wind
@@ -27,7 +27,8 @@ if bpy is not None:
                        Plane, Sphere, Torus, UVSphere, merge)
     from .particles import ParticleSystem
     from .post import PostProcess
-    from .scene import Scene
+    from .quick import auto_camera, auto_light, post, render, scene
+    from .scene import Scene, defaults
     from .text import Text
     from .texture import Image, Noise, Texture
     from .utils import hex_to_rgb, hex_to_rgba
@@ -35,17 +36,20 @@ if bpy is not None:
     __all__ += [
         "AreaLight", "Bezier", "BezierCircle", "Box", "Camera", "Circle", "Cone", "Cube",
         "Cylinder", "DiffuseMaterial", "EmissionMaterial", "Empty", "ForceField", "Geometry",
-        "Grid", "IcoSphere", "Image", "Line", "Material", "Mesh", "Model", "NodeMaterial", "Noise",
-        "ParticleSystem", "Plane", "PointLight", "PostProcess", "RefractionMaterial", "Scene",
-        "Sphere", "SpotLight", "Sun", "Text", "Texture", "Torus", "Turbulence", "UVSphere",
-        "VolumeMaterial", "Vortex", "Wind", "hex_to_rgb", "hex_to_rgba", "merge",
+        "Grid", "Group", "IcoSphere", "Image", "Line", "Material", "Mesh", "Model",
+        "NodeMaterial", "Noise", "ParticleSystem", "Plane", "PointLight", "PostProcess",
+        "RefractionMaterial", "Scene", "Sphere", "SpotLight", "Sun", "Text", "Texture", "Torus",
+        "Turbulence", "UVSphere", "VolumeMaterial", "Vortex", "Wind", "auto_camera",
+        "auto_light", "defaults", "hex_to_rgb", "hex_to_rgba", "merge", "post", "render", "scene",
     ]
 
 
 def reset():
     """Replace the current scene with an empty one. No-op outside Blender."""
     if bpy is not None:
+        from .quick import _reset
         bpy.ops.wm.read_factory_settings(use_empty=True)
+        _reset()
 
 
 reset()

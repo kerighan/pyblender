@@ -2,8 +2,8 @@
 
 import bpy
 
-from .base import BlenderObject, Empty, link_to_scene
-from .mesh import Mesh
+from .base import BlenderObject, Empty, Group, link_to_scene
+from .mesh import Mesh, as_material
 from .utils import to_radians
 
 UPRIGHT = (90, 0, 0)  # text standing in the XZ plane, readable from -Y
@@ -72,10 +72,11 @@ class Text(BlenderObject):
         align: ``"left"``, ``"center"`` or ``"right"``, relative to the origin.
         tracking: extra spacing between letters, as a fraction of ``size``.
         split: ``None`` for a single object, ``"letters"`` or ``"words"`` to create one object
-            per part, all parented to an invisible group. Parts are listed in :attr:`parts`
-            and are what the :mod:`pyblender.motion` functions animate.
+            per part, all parented to an invisible group. :attr:`parts` is then a
+            :class:`~pyblender.base.Group` with the staggered motions
+            (``text.parts.pop_in(stagger=3)``).
 
-    The ``animate_*`` methods of a split text move the whole group, so a text can be
+    Tweens and ``animate_*`` on the text itself move the whole group, so a text can be
     animated as a block while its letters are animated individually.
     """
 
@@ -84,6 +85,7 @@ class Text(BlenderObject):
                  line_spacing=1.0, split=None, visible=True):
         if rotation is None:
             rotation = UPRIGHT if upright else (0, 0, 0)
+        material = as_material(material)
         font = load_font(font) if isinstance(font, str) or font is None else font
         self.body = body
         self.size = size
@@ -94,7 +96,7 @@ class Text(BlenderObject):
         if split is None:
             whole = TextObject(body, location=location, rotation=rotation, align=align, **style)
             self.obj = whole.obj
-            self.parts = [whole]
+            self.parts = Group([whole])
             return
 
         if "\n" in body:
@@ -136,7 +138,7 @@ class Text(BlenderObject):
                 part.obj.location = (cursor + width / 2, 0, 0)
             cursor += width + gap
         self.width = total
-        return [part for part in parts if part is not None]
+        return Group(part for part in parts if part is not None)
 
     def __iter__(self):
         return iter(self.parts)

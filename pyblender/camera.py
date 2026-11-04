@@ -9,8 +9,10 @@ class Camera(BlenderObject):
 
     Arguments:
         location: camera position.
-        rotation: Euler angles in degrees, usually replaced by ``look_at``.
-        focus_point: enables depth of field focused on this point ``(x, y, z)``.
+        target: a point or object to look at (same as calling ``look_at``).
+        rotation: Euler angles in degrees, used when there is no ``target``.
+        focus: depth of field: a point, an object, or ``True`` to focus on ``target``.
+        focus_point: alias of ``focus``.
         aperture_fstop: f-stop of the lens, smaller means shallower depth of field.
         aperture_ratio: anamorphic ratio of the bokeh.
         aperture_blades: number of blades of the bokeh shape.
@@ -18,24 +20,27 @@ class Camera(BlenderObject):
         clip: ``(start, end)`` clipping distances.
     """
 
-    def __init__(self, location=(0, 0, 0), rotation=(0, 0, 0), focus_point=None,
+    def __init__(self, location=(0, 0, 0), target=None, rotation=(0, 0, 0), focus=None,
                  aperture_fstop=2.8, aperture_ratio=1.0, aperture_blades=8, lens=50,
-                 clip=(0.1, 1000)):
+                 clip=(0.1, 1000), focus_point=None):
         data = bpy.data.cameras.new("camera")
         data.lens = lens
         data.clip_start, data.clip_end = clip
         data.dof.aperture_fstop = aperture_fstop
         data.dof.aperture_ratio = aperture_ratio
         data.dof.aperture_blades = aperture_blades
-        if focus_point is not None:
-            data.dof.use_dof = True
-            data.dof.focus_object = Empty(focus_point, name="focus").obj
-
-        self.data = data
         self.obj = link_to_scene(bpy.data.objects.new("camera", data))
         self.obj.location = location
         self.obj.rotation_euler = to_radians(rotation)
         bpy.context.scene.camera = self.obj
+
+        if target is not None:
+            self.look_at(target)
+        focus = focus_point if focus is None else focus
+        if focus is True:
+            focus = target
+        if focus is not None:
+            self.set_focus(focus)
 
     def set_focus(self, target, fstop=None):
         """Enable depth of field focused on a point or an object."""

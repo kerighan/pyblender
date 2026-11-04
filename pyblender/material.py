@@ -310,16 +310,20 @@ class Material(NodeMaterial):
         normal: normal map image path or node.
         displacement, displacement_scale: height map driving true displacement.
         cast_shadows, shadow_mode, blend_mode: Eevee shadow and blend settings.
+        **sockets: any other Principled BSDF input by name (``clearcoat=0.5``,
+            ``sheen=0.2``, ``ior=1.3``, ``anisotropic=1``…).
     """
 
     def __init__(self, color="#FFFFFF", roughness=0.5, metallic=0.5, specular=0.0, opacity=1.0,
                  transmission=0.0, subsurface=0.0, emission_strength=0.0, emission_color=None,
                  texture=None, normal=None, displacement=None, displacement_scale=1.0,
-                 cast_shadows=True, shadow_mode=None, blend_mode=None, name="material"):
+                 cast_shadows=True, shadow_mode=None, blend_mode=None, name="material",
+                 **sockets):
         super().__init__(name)
         self.bsdf["Base Color"] = color
         for socket, value in {"Roughness": roughness, "Metallic": metallic, "Specular": specular,
-                              "Transmission": transmission, "Subsurface": subsurface}.items():
+                              "Transmission": transmission, "Subsurface": subsurface,
+                              **sockets}.items():
             self._set_or_link(socket, value)
         self._set_or_link("Base Color", texture)
 

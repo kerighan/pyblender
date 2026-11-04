@@ -14,6 +14,9 @@ Without an explicit socket, ``>>`` uses the first output and the first input, so
 ``noise >> ramp >> bsdf`` works for the common case. ``a.to(b)`` is the same as ``a >> b``.
 """
 
+import numpy as np
+
+from .animation.easing import EASINGS
 from .utils import to_rgba
 
 _PRIVATE = {"node", "tree"}
@@ -44,6 +47,7 @@ class Node:
         object.__setattr__(self, "node", node)
         object.__setattr__(self, "tree", tree)
         object.__setattr__(self, "_socket", None)
+        object.__setattr__(self, "_cursor", 0)
 
     # ------------------------------------------------------------------
     # Socket access
@@ -102,10 +106,14 @@ class Node:
     def __setitem__(self, socket, value):
         self.set(socket, value)
 
-    def set(self, socket, value):
-        """Set an input socket's default value. Colors accept hex strings or RGB(A) tuples."""
-        target = self.input(socket)
-        target.default_value = _coerce(target, value)
+    def set(self, socket=None, value=None, **sockets):
+        """Set input sockets: ``node.set("Roughness", 0.3)`` or ``node.set(roughness=0.3)``.
+        Colors accept hex strings or RGB(A) tuples."""
+        if socket is not None:
+            sockets[socket] = value
+        for name, val in sockets.items():
+            target = self.input(name)
+            target.default_value = _coerce(target, val)
         return self
 
     # ------------------------------------------------------------------
@@ -117,14 +125,42 @@ class Node:
         object.__setattr__(self, "_socket", None)
         return socket
 
-    def to(self, target):
-        """Link the selected output to the selected input of ``target`` (same as ``>>``)."""
+    def to(self, target, duration=20, easing="cubic-out", start=None):
+        """With a node: link the selected output to its selected input (same as ``>>``).
+        With a value: tween the selected input socket to it, like objects do::
+
+            noise.fac >> ramp.fac            # link
+            mat.bsdf.roughness.to(1, 30)     # tween over 30 frames
+        """
+        if not isinstance(target, Node):
+            return self.tween(target, duration, easing, start)
         output = self._take()
         inp = target._take()
         if target.tree is not self.tree:
             raise ValueError("cannot link nodes that belong to different node trees")
         self.tree.link(self, 0 if output is None else output, target, 0 if inp is None else inp)
         return target
+
+    def tween(self, value, duration=20, easing="cubic-out", start=None, socket=None):
+        """Tween the selected (or named) input socket from its current value to ``value``."""
+        socket = self._take() if socket is None else socket
+        target = self.input(socket)
+        start = self._cursor if start is None else int(start)
+        current = target.default_value
+        current = np.asarray(tuple(current) if hasattr(current, "__len__") else current, float)
+        value = np.asarray(_coerce(target, value), dtype=float)
+        progress = np.asarray(EASINGS[easing](np.linspace(0, 1, duration + 1)), dtype=float)
+        if current.ndim:
+            values = current + (value - current) * progress[:, None]
+        else:
+            values = current + (value - current) * progress
+        self.animate(socket, values, range(start, start + duration + 1))
+        object.__setattr__(self, "_cursor", start + duration)
+        return self
+
+    def wait(self, frames):
+        object.__setattr__(self, "_cursor", self._cursor + int(frames))
+        return self
 
     def __rshift__(self, target):
         return self.to(target)
