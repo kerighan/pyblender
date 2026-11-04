@@ -408,8 +408,9 @@ class Line(Mesh):
 class Model(Mesh):
     """A model imported from a ``.glb`` / ``.gltf``, ``.fbx`` or ``.obj`` file.
 
-    A file holding several objects becomes a group: ``model.parts`` lists them and
-    ``model.obj`` is an empty parenting them all.
+    A file holding several objects becomes a group: ``model.parts`` lists the meshes and
+    ``model.obj`` is an empty (or the armature) parenting them all. ``location``,
+    ``rotation`` and ``scale`` replace the importer's transforms only when given.
     """
 
     IMPORTERS = {
@@ -419,8 +420,8 @@ class Model(Mesh):
         ".obj": lambda path: bpy.ops.import_scene.obj(filepath=path),
     }
 
-    def __init__(self, path, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1),
-                 material=None, visible=True):
+    def __init__(self, path, location=None, rotation=None, scale=None, material=None,
+                 visible=True):
         extension = os.path.splitext(path)[1].lower()
         if extension not in self.IMPORTERS:
             raise ValueError(f"unsupported model format {extension!r}")
@@ -441,9 +442,14 @@ class Model(Mesh):
             self.parts = meshes
         self.armature = next((obj for obj in imported if obj.type == "ARMATURE"), None)
 
-        self.obj.location = location
-        self.obj.rotation_euler = to_radians(rotation)
-        self.obj.scale = scale
+        # importers set their own transforms (FBX: 90 degrees on X, scale 0.01), so only
+        # the transforms given explicitly are applied
+        if location is not None:
+            self.obj.location = location
+        if rotation is not None:
+            self.obj.rotation_euler = to_radians(rotation)
+        if scale is not None:
+            self.obj.scale = scale if hasattr(scale, "__len__") else (scale, scale, scale)
         if material is not None:
             self.set_material(material)
         self.set_visible(visible)

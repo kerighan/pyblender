@@ -59,7 +59,8 @@ movie = pb.Movie("renders/trailer.mp4", fade=0.5, size=(1280, 720), engine="cycl
                  audio=MUSIC)
 
 
-def caption(camera, text, start, y=-0.82, size=0.11, color=WHITE, font=None, stagger=0.06):
+def caption(camera, text, start, y=-0.82, size=0.11, color=WHITE, font=None, stagger=0.06,
+            emission=1.5):
     """A line of text pinned to the camera, typed in at ``start`` seconds.
 
     ``y`` is relative to the frame height (-1 bottom edge, 1 top edge), whatever the lens.
@@ -69,7 +70,7 @@ def caption(camera, text, start, y=-0.82, size=0.11, color=WHITE, font=None, sta
     half_height = half_width * 9 / 16
     label = pb.Text(text, size=size, font=font or REGULAR, split="words", upright=False,
                     align="left", location=(-0.86 * half_width, y * half_height, -distance),
-                    material=pb.Material(color=color, emission_strength=1.5, roughness=1))
+                    material=pb.Material(color=color, emission_strength=emission, roughness=1))
     label.set_parent(camera)
     label.parts.typewriter(stagger=stagger, start=start)
     return label
@@ -79,11 +80,11 @@ def code(camera, text, start):
     return caption(camera, text, start, y=-0.92, size=0.085, color=CYAN, font=MONO, stagger=0.03)
 
 
-def backdrop(color=BG, depth=6):
+def backdrop(color=BG, depth=6, floor=-1.5):
     pb.Plane(size=80, location=(0, depth, 0), rotation=(90, 0, 0),
              material=pb.Material(color=color, roughness=0.9, metallic=0))
-    pb.Plane(size=80, location=(0, 0, -1.5), material=pb.Material(color=color, roughness=0.5,
-                                                                 metallic=0))
+    pb.Plane(size=80, location=(0, 0, floor), material=pb.Material(color=color, roughness=0.5,
+                                                                  metallic=0))
 
 
 def look(glow=0.12, threshold=1.0):
@@ -208,7 +209,7 @@ def fireflies():
     spot.to(energy=2000, duration=2.25).to(energy=3000, duration=2.25)
     camera = pb.Camera((7, -7, 2.2), target=(0, 0, 1.2), lens=35)
     camera.to(location=(5, -8, 1.6), duration=4.5, easing="sine-in-out")
-    caption(camera, "three hundred fireflies", start=1.4)
+    caption(camera, "three hundred fireflies", start=1.4, emission=4)
     look(glow=0.3, threshold=2).add_volumetric_light()
 
 
@@ -276,13 +277,13 @@ def dance():
     model = pb.Model("../experiments/astronaut/model/Ymca Dance.fbx")
     model.set_material(pb.Material(color=WHITE, roughness=0.45, metallic=0.05))
     model.set_smooth()
-    backdrop(depth=4)
+    backdrop(depth=4, floor=0)
     pb.SpotLight((2, -5, 5), target=(0, 0, 1), energy=2500, color="#FFE8D0", angle=50, blend=0.5,
                  radius=0.8)
     pb.SpotLight((-3, 3, 4), target=(0, 0, 1), energy=1500, color=CYAN, angle=60, blend=0.6)
     pb.PointLight((3, -2, 0.5), energy=150, color=ACCENT, radius=1)
-    camera = pb.Camera((2.4, -4.2, 1.4), target=pb.Empty((0, 0, 0.95)), lens=50)
-    camera.to(location=(-2.0, -4.4, 1.2), duration=4.5, easing="sine-in-out")
+    camera = pb.Camera((3.0, -5.4, 1.6), target=pb.Empty((0, 0, 1.15)), lens=45)
+    camera.to(location=(-2.4, -5.6, 1.3), duration=4.5, easing="sine-in-out")
     caption(camera, "import a model, its animation comes along", start=0.8)
     code(camera, 'pb.Model("Ymca Dance.fbx")', start=1.6)
     look(glow=0)
